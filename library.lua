@@ -1410,10 +1410,10 @@ local function playLarpIntro(targetWin, isReplay)
         if (not overlay or not overlay.Parent) then return end
 
         local letterSpecs = {
-            {ch = 'L', x = -165, dx = -24, dy = -38, rot = -15, exitX = -202},
-            {ch = 'A', x = -55, dx = -8, dy = 40, rot = 12, exitX = -68},
-            {ch = 'R', x = 55, dx = 8, dy = -40, rot = -12, exitX = 68},
-            {ch = 'P', x = 165, dx = 24, dy = 38, rot = 15, exitX = 202}
+            {ch = 'L', x = -130, dx = -22, dy = -38, rot = -15, exitX = -160},
+            {ch = 'A', x = -45, dx = -8, dy = 40, rot = 12, exitX = -56},
+            {ch = 'R', x = 45, dx = 8, dy = -40, rot = -12, exitX = 56},
+            {ch = 'P', x = 135, dx = 22, dy = 38, rot = 15, exitX = 166}
         }
 
         local letterNodes = {}
@@ -1499,8 +1499,8 @@ local function playLarpIntro(targetWin, isReplay)
             end
         end
 
-        tween(auraOuter, {ImageTransparency = 0.58, Size = UDim2.fromOffset(520, 220)}, 0.36, 1)
-        tween(horizon, {Size = UDim2.fromOffset(470, 1)}, 0.28, 5)
+        tween(auraOuter, {ImageTransparency = 0.58, Size = UDim2.fromOffset(480, 215)}, 0.36, 1)
+        tween(horizon, {Size = UDim2.fromOffset(420, 1)}, 0.28, 5)
         sleepInterruptible(0.16)
 
         for idx, node in ipairs(letterNodes) do
@@ -1541,7 +1541,7 @@ local function playLarpIntro(targetWin, isReplay)
             glintBar.BackgroundTransparency = 0
             glintBar.Position = UDim2.new(0, -110, 0.5, 0)
             tween(glintBar, {Position = UDim2.new(1, 110, 0.5, 0)}, 0.44, 5)
-            tween(underline, {Size = UDim2.fromOffset(390, 2)}, 0.34, 5)
+            tween(underline, {Size = UDim2.fromOffset(335, 2)}, 0.34, 5)
             tween(stageScale, {Scale = 1.045}, 0.68, 2)
             tween(auraOuter, {ImageTransparency = 0.48}, 0.28, 1)
             sleepInterruptible(0.64)
