@@ -8,16 +8,15 @@ Refined Roblox UI library rebuilt from Dollarware with crisp tactical dark styli
 local uiLoader = loadstring(game:HttpGet('https://raw.githubusercontent.com/x8lua/LARPWare/main/library.lua'))
 local ui = uiLoader({
     rounding = false,
-    theme = 'cherry',
     smoothDragging = false,
-    font = 'gotham',
+    font = 'roboto',
     scale = 1
 })
 ```
 
 ## Controls & Features
 
-- **Core Controls**: `addLabel`, `addToggle` (supports inline `toggle:addHotkey()` & `toggle:addColorPicker()`), `addButton` (`small` / `large`), `addDualButton`, `addSlider` (right-click numeric input), `addRangeSlider`, `addColorPicker`, `addTextbox`, `addHotkey`, `addDropdown`, `addMultiDropdown`, `addSegmented`, `addListbox` (with live search filter), `addProgressBar`, `addDivider`, `addParagraph`.
-- **Font Selector**: Switch live between `.code` (`Enum.Font.Code`) and `.gotham` (`Enum.Font.Gotham`) via `ui.setFont(ui.fonts.code)`, `section:addFontSelector()`, or the titlebar appearance popover.
-- **UI Scaler**: Scale windows, color pickers, tooltips, notifications, and HUD panels (`0.5x` – `2.5x`) via `ui.setScale(1.25)`, `section:addUIScaler()`, or the titlebar appearance popover.
+- **Core Controls**: `addLabel`, `addToggle` (supports inline `toggle:addHotkey()` & `toggle:addColorPicker()`), `addButton` (`small` / `large`), `addDualButton`, `addSlider` (inline bar value + right-click numeric input), `addRangeSlider`, `addColorPicker`, `addTextbox`, `addHotkey`, `addDropdown`, `addMultiDropdown`, `addSegmented`, `addListbox` (with live search filter), `addProgressBar`, `addDivider`, `addParagraph`.
+- **Font Selector**: Switch live between `.roboto` (default), `.robotomono`, `.ubuntu`, `.arimo`, `.code`, and `.gotham` via `ui.setFont(ui.fonts.roboto)`, `section:addFontSelector()`, or the titlebar appearance popover.
+- **UI Scaler**: Scale everything inside the main UI without resizing the outer window (`0.5x` – `2.5x`) via `ui.setScale(1.15)`, `section:addUIScaler()`, or the titlebar appearance popover.
 - **Draggable HUD Panels**: `ui.setWatermark(text, visible)`, `ui.toggleWatermark(bool)`, and `ui.toggleKeybindList(bool)`.

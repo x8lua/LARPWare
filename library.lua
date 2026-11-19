@@ -80,12 +80,16 @@ local rounding
 local animSpeed = 1e-12
 
 local fontMap = {
+    roboto = Enum.Font.Roboto,
+    robotomono = Enum.Font.RobotoMono,
+    ubuntu = Enum.Font.Ubuntu,
+    arimo = Enum.Font.Arimo,
     code = Enum.Font.Code,
     gotham = Enum.Font.Gotham
 }
-local fontOrder = {'code', 'gotham'}
-local currentFontKey = 'gotham'
-local currentFont = fontMap.gotham
+local fontOrder = {'roboto', 'robotomono', 'ubuntu', 'arimo', 'code', 'gotham'}
+local currentFontKey = 'roboto'
+local currentFont = fontMap.roboto
 local currentScale = 1
 
 local function resolveFont(input)
@@ -1112,7 +1116,7 @@ do
                 BorderSizePixel = 1,
                 Name = '#settings-popover',
                 Position = UDim2.new(1, -6, 0, 34),
-                Size = UDim2.fromOffset(196, 114),
+                Size = UDim2.fromOffset(206, 152),
                 Visible = false,
                 ZIndex = 80
             }, mainFrame)
@@ -1209,24 +1213,26 @@ do
                 BorderSizePixel = 0,
                 Name = '#font-group',
                 Position = UDim2.fromOffset(0, 16),
-                Size = UDim2.new(1, 0, 0, 22),
+                Size = UDim2.new(1, 0, 0, 68),
                 ZIndex = 82
             }, popBody)
             makeCorner(fontGroup, cornerPx)
             makeStroke(fontGroup, theme.Stroke, 1)
 
             for idx, fk in ipairs(fontOrder) do
+                local col = (idx - 1) % 2
+                local row = math.floor((idx - 1) / 2)
                 local btn = create('TextButton', {
                     AutoButtonColor = false,
                     BackgroundColor3 = theme.Button1,
                     BorderSizePixel = 0,
                     Font = fontMap[fk],
-                    Name = '#opt-' .. fk,
-                    Position = UDim2.new((idx - 1) * 0.5, 1, 0, 1),
-                    Size = UDim2.new(0.5, -2, 1, -2),
+                    Name = '#fopt-' .. fk,
+                    Position = UDim2.new(col * 0.5, col == 0 and 2 or 1, 0, 2 + row * 22),
+                    Size = UDim2.new(0.5, -3, 0, 20),
                     Text = '.' .. fk,
                     TextColor3 = theme.TextDim,
-                    TextSize = 12,
+                    TextSize = 11,
                     TextStrokeColor3 = theme.TextStroke,
                     TextStrokeTransparency = 0.85,
                     ZIndex = 83
@@ -1247,7 +1253,7 @@ do
             local scaleHeader = create('Frame', {
                 BackgroundTransparency = 1,
                 Name = '#scale-header',
-                Position = UDim2.fromOffset(0, 46),
+                Position = UDim2.fromOffset(0, 90),
                 Size = UDim2.new(1, 0, 0, 14),
                 ZIndex = 82
             }, popBody)
@@ -1284,9 +1290,10 @@ do
                 Active = true,
                 BackgroundColor3 = theme.Inset1,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Name = '#scale-track',
-                Position = UDim2.fromOffset(0, 64),
-                Size = UDim2.new(1, 0, 0, 8),
+                Position = UDim2.fromOffset(0, 106),
+                Size = UDim2.new(1, 0, 0, 10),
                 ZIndex = 82
             }, popBody)
             makeCorner(scaleTrack, cornerPx)
@@ -1295,6 +1302,7 @@ do
             local scaleFill = create('Frame', {
                 Active = false,
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 0.2,
                 BorderSizePixel = 0,
                 Name = '#fill',
                 Size = UDim2.fromScale(0.333, 1),
@@ -1304,12 +1312,12 @@ do
             makeGradient(scaleFill, theme.Primary, theme.Secondary, 0)
             create('Frame', {
                 AnchorPoint = Vector2.new(1, 0),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BackgroundTransparency = 0.25,
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 0.1,
                 BorderSizePixel = 0,
                 Name = '#cap',
                 Position = UDim2.fromScale(1, 0),
-                Size = UDim2.new(0, 2, 1, 0),
+                Size = UDim2.new(0, 1, 1, 0),
                 ZIndex = 84
             }, scaleFill)
 
@@ -1586,7 +1594,7 @@ do
 
                 local function syncPopoverFont(fKey)
                     for _, fk in ipairs(fontOrder) do
-                        local btn = fontGroup['#opt-' .. fk]
+                        local btn = fontGroup['#fopt-' .. fk]
                         local active = (fk == fKey)
                         tween(btn, {
                             BackgroundColor3 = active and theme.Button3 or theme.Button1,
@@ -1597,7 +1605,7 @@ do
                 end
 
                 for _, fk in ipairs(fontOrder) do
-                    local btn = fontGroup['#opt-' .. fk]
+                    local btn = fontGroup['#fopt-' .. fk]
                     btn.MouseButton1Click:Connect(function()
                         ui.setFont(fk)
                     end)
@@ -4212,7 +4220,7 @@ do
             local controlFrame = create('Frame', {
                 BackgroundTransparency = 1,
                 Name = '#control',
-                Size = UDim2.new(1, 0, 0, 40),
+                Size = UDim2.new(1, 0, 0, 88),
                 ZIndex = 34
             })
             instances.controlFrame = controlFrame
@@ -4238,24 +4246,26 @@ do
                 BorderSizePixel = 0,
                 Name = '#group',
                 Position = UDim2.fromOffset(5, 17),
-                Size = UDim2.new(1, -10, 0, 21),
+                Size = UDim2.new(1, -10, 0, 68),
                 ZIndex = 35
             }, controlFrame)
             makeCorner(group, cornerPx)
             makeStroke(group, theme.Stroke, 1)
 
             for idx, fk in ipairs(fontOrder) do
+                local col = (idx - 1) % 2
+                local row = math.floor((idx - 1) / 2)
                 local btn = create('TextButton', {
                     AutoButtonColor = false,
                     BackgroundColor3 = theme.Button1,
                     BorderSizePixel = 0,
                     Font = fontMap[fk],
-                    Name = '#opt-' .. fk,
-                    Position = UDim2.new((idx - 1) * 0.5, 1, 0, 1),
-                    Size = UDim2.new(0.5, -2, 1, -2),
+                    Name = '#fopt-' .. fk,
+                    Position = UDim2.new(col * 0.5, col == 0 and 2 or 1, 0, 2 + row * 22),
+                    Size = UDim2.new(0.5, -3, 0, 20),
                     Text = '.' .. fk,
                     TextColor3 = theme.TextDim,
-                    TextSize = 12,
+                    TextSize = 11,
                     TextStrokeColor3 = theme.TextStroke,
                     TextStrokeTransparency = 0.85,
                     ZIndex = 36
@@ -4293,7 +4303,7 @@ do
 
             local function sync(fKey)
                 for _, fk in ipairs(fontOrder) do
-                    local btn = insts.group['#opt-' .. fk]
+                    local btn = insts.group['#fopt-' .. fk]
                     local active = (fk == fKey)
                     tween(btn, {
                         BackgroundColor3 = active and theme.Button3 or theme.Button1,
@@ -4304,7 +4314,7 @@ do
             end
 
             for _, fk in ipairs(fontOrder) do
-                local btn = insts.group['#opt-' .. fk]
+                local btn = insts.group['#fopt-' .. fk]
                 btn.MouseButton1Click:Connect(function()
                     ui.setFont(fk)
                     new:fireEvent('onFontChange', fk, fontMap[fk])
@@ -7157,7 +7167,7 @@ local function applyFontToTree(root, fontEnum)
     if (not root) then return end
     local function maybeApply(inst)
         if (inst:IsA('TextLabel') or inst:IsA('TextButton') or inst:IsA('TextBox')) then
-            if (inst.Name == '#opt-code' or inst.Name == '#opt-gotham') then
+            if (inst.Name:sub(1, 6) == '#fopt-') then
                 return
             end
             inst.Font = fontEnum
@@ -7182,6 +7192,10 @@ do
     ui.scriptCns = {}
 
     ui.fonts = {
+        roboto = Enum.Font.Roboto,
+        robotomono = Enum.Font.RobotoMono,
+        ubuntu = Enum.Font.Ubuntu,
+        arimo = Enum.Font.Arimo,
         code = Enum.Font.Code,
         gotham = Enum.Font.Gotham
     }

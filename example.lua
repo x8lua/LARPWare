@@ -3,7 +3,7 @@ local uiLoader = loadstring(game:HttpGet('https://raw.githubusercontent.com/x8lu
 local ui = uiLoader({
     rounding = false,
     smoothDragging = false,
-    font = 'gotham',
+    font = 'roboto',
     scale = 1
 })
 
@@ -540,7 +540,7 @@ do
 
         cfgSec:addParagraph({
             title = 'LARPWare v2.0',
-            content = 'Dark crimson tactical UI library with live font switching (.code / .gotham), inner content scaling, inline toggle addons, and draggable HUD panels.'
+            content = 'Dark crimson tactical UI library with live font switching (.roboto / .robotomono / .ubuntu / .arimo / .code / .gotham), inner content scaling, inline toggle addons, and draggable HUD panels.'
         })
     end
 end
