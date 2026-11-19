@@ -324,6 +324,34 @@ do
                     ControlGradient2 = Color3.fromRGB(192, 192, 192)
                 }
             elseif (theme == 'watermelon') then
+                theme = {
+                    Primary = Color3.fromRGB(38, 233, 195),
+                    Secondary = Color3.fromRGB(233, 38, 115),
+
+                    Window1 = Color3.fromRGB(24, 24, 28),
+                    Window2 = Color3.fromRGB(15, 15, 19),
+                    Window3 = Color3.fromRGB(19, 19, 23),
+
+                    Button1 = Color3.fromRGB(27, 27, 32),
+                    Button2 = Color3.fromRGB(35, 35, 42),
+                    Button3 = Color3.fromRGB(38, 44, 48),
+                    Button4 = Color3.fromRGB(46, 54, 60),
+
+                    Stroke = Color3.fromRGB(46, 46, 54),
+                    StrokeHover = Color3.fromRGB(78, 84, 96),
+
+                    Inset1 = Color3.fromRGB(12, 12, 15),
+                    Inset2 = Color3.fromRGB(8, 8, 11),
+                    Inset3 = Color3.fromRGB(10, 10, 13),
+
+                    TextPrimary = Color3.fromRGB(244, 244, 248),
+                    TextStroke = Color3.fromRGB(0, 0, 0),
+                    TextDim = Color3.fromRGB(156, 156, 166),
+
+                    ControlGradient1 = Color3.fromRGB(255, 255, 255),
+                    ControlGradient2 = Color3.fromRGB(192, 192, 192)
+                }
+            elseif (theme == 'darkred' or theme == 'crimson' or theme == 'larp' or theme == 'default') then
                 theme = nil
             end
         end
@@ -334,31 +362,31 @@ do
     end
     if (typeof(theme) ~= 'table') then
         theme = {
-            Primary = Color3.fromRGB(38, 233, 195),
-            Secondary = Color3.fromRGB(233, 38, 115),
+            Primary = Color3.fromRGB(168, 24, 36),
+            Secondary = Color3.fromRGB(108, 12, 22),
 
-            Window1 = Color3.fromRGB(24, 24, 28),
-            Window2 = Color3.fromRGB(15, 15, 19),
-            Window3 = Color3.fromRGB(19, 19, 23),
+            Window1 = Color3.fromRGB(13, 13, 14),
+            Window2 = Color3.fromRGB(8, 8, 9),
+            Window3 = Color3.fromRGB(11, 11, 12),
 
-            Button1 = Color3.fromRGB(27, 27, 32),
-            Button2 = Color3.fromRGB(35, 35, 42),
-            Button3 = Color3.fromRGB(38, 44, 48),
-            Button4 = Color3.fromRGB(46, 54, 60),
+            Button1 = Color3.fromRGB(15, 15, 17),
+            Button2 = Color3.fromRGB(21, 21, 24),
+            Button3 = Color3.fromRGB(28, 17, 19),
+            Button4 = Color3.fromRGB(36, 20, 23),
 
-            Stroke = Color3.fromRGB(46, 46, 54),
-            StrokeHover = Color3.fromRGB(78, 84, 96),
+            Stroke = Color3.fromRGB(30, 30, 33),
+            StrokeHover = Color3.fromRGB(104, 24, 34),
 
-            Inset1 = Color3.fromRGB(12, 12, 15),
-            Inset2 = Color3.fromRGB(8, 8, 11),
-            Inset3 = Color3.fromRGB(10, 10, 13),
+            Inset1 = Color3.fromRGB(6, 6, 7),
+            Inset2 = Color3.fromRGB(3, 3, 4),
+            Inset3 = Color3.fromRGB(5, 5, 6),
 
-            TextPrimary = Color3.fromRGB(244, 244, 248),
+            TextPrimary = Color3.fromRGB(240, 240, 243),
             TextStroke = Color3.fromRGB(0, 0, 0),
-            TextDim = Color3.fromRGB(156, 156, 166),
+            TextDim = Color3.fromRGB(146, 146, 154),
 
             ControlGradient1 = Color3.fromRGB(255, 255, 255),
-            ControlGradient2 = Color3.fromRGB(192, 192, 192)
+            ControlGradient2 = Color3.fromRGB(190, 190, 190)
         }
     end
 end
@@ -398,7 +426,7 @@ do
 
     notifScale = create('UIScale', {
         Name = '#scale',
-        Scale = currentScale
+        Scale = 1
     }, notifContainer)
 end
 
@@ -559,7 +587,7 @@ do
         ZIndex = 3800
     }, uiScreen)
 
-    create('UIScale', {Name = '#scale', Scale = currentScale}, main)
+    create('UIScale', {Name = '#scale', Scale = 1}, main)
     makeCorner(main, cornerPx)
     makeStroke(main, theme.Stroke, 1)
 
@@ -679,7 +707,7 @@ do
         Visible = false,
         ZIndex = 3900
     }, uiScreen)
-    create('UIScale', {Name = '#scale', Scale = currentScale}, main)
+    create('UIScale', {Name = '#scale', Scale = 1}, main)
     makeStroke(main, theme.Stroke, 1)
     instances.main = main
     hint.instances = instances
@@ -813,7 +841,7 @@ do
 
             create('UIScale', {
                 Name = '#scale',
-                Scale = currentScale
+                Scale = 1
             }, mainFrame)
 
             makeCorner(mainFrame, cornerPx)
@@ -998,6 +1026,7 @@ do
                 BorderColor3 = theme.Inset3,
                 BorderMode = Enum.BorderMode.Inset,
                 BorderSizePixel = 1,
+                ClipsDescendants = true,
                 Name = '#sidebar',
                 Position = UDim2.fromOffset(0, 29),
                 Size = UDim2.new(0, 128, 1, -29),
@@ -1021,16 +1050,21 @@ do
                 CanvasSize = UDim2.fromOffset(0, 0),
                 MidImage = 'rbxassetid://9416839567',
                 Name = '#menu',
-                Position = UDim2.fromOffset(1, 1),
+                Position = UDim2.fromScale(0, 0),
                 ScrollBarImageColor3 = theme.StrokeHover,
                 ScrollBarImageTransparency = 0.5,
                 ScrollBarThickness = 2,
                 ScrollingDirection = Enum.ScrollingDirection.Y,
                 ScrollingEnabled = true,
-                Size = UDim2.new(1, -3, 1, -2),
+                Size = UDim2.fromScale(1 / currentScale, 1 / currentScale),
                 TopImage = 'rbxassetid://9416839567',
                 ZIndex = 49
             }, sideBar)
+
+            create('UIScale', {
+                Name = '#content-scale',
+                Scale = currentScale
+            }, menu)
 
             create('UIListLayout', {
                 FillDirection = Enum.FillDirection.Vertical,
@@ -1430,7 +1464,7 @@ do
                         end
                     end)
                 end)
-                tween(mainFrame['#scale'], {Scale = currentScale * 0.6}, 0.45, 1).Completed:Wait()
+                tween(mainFrame['#scale'], {Scale = 0.6}, 0.45, 1).Completed:Wait()
                 if (animCon) then
                     animCon:Disconnect()
                 end
@@ -1512,7 +1546,7 @@ do
 
             local insts = {}
             insts.mainFrame = self.instances.mainFrame:Clone()
-            insts.mainFrame['#scale'].Scale = currentScale
+            insts.mainFrame['#scale'].Scale = 1
 
             local titleBar = insts.mainFrame['#title-bar']
             insts.buttonClose = titleBar['#button-close']
@@ -1523,6 +1557,8 @@ do
             insts.gradient = insts.mainFrame['#trim']['#gradient']
             insts.sideBar = insts.mainFrame['#sidebar']
             insts.tabMenu = insts.sideBar['#menu']
+            insts.tabMenu['#content-scale'].Scale = currentScale
+            insts.tabMenu.Size = UDim2.fromScale(1 / currentScale, 1 / currentScale)
             insts.pageRegion = insts.mainFrame['#page-region']
             insts.resizeHandle = insts.mainFrame['#resize-handle']
             insts.settingsPopover = insts.mainFrame['#settings-popover']
@@ -1699,8 +1735,7 @@ do
 
                 resizeHandle.InputBegan:Connect(function(io)
                     if (io.UserInputType == Enum.UserInputType.MouseButton1 and not new.minimized) then
-                        local s = currentScale
-                        local rootSize = mainFrame.AbsoluteSize / s
+                        local rootSize = mainFrame.AbsoluteSize
                         local startPos = Vector2.new(io.Position.X, io.Position.Y)
                         targetSize = UDim2.fromOffset(rootSize.X, rootSize.Y)
 
@@ -1716,7 +1751,7 @@ do
                         dCon = inputService.InputChanged:Connect(function(mio)
                             if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
                                 local curPos = Vector2.new(mio.Position.X, mio.Position.Y)
-                                local dest = rootSize + (curPos - startPos) / s
+                                local dest = rootSize + (curPos - startPos)
                                 targetSize = UDim2.fromOffset(math.clamp(dest.X, 400, 900), math.clamp(dest.Y, 280, 720))
                             end
                         end)
@@ -1969,7 +2004,7 @@ do
                 Visible = true,
                 ZIndex = 100
             })
-            create('UIScale', {Name = '#scale', Scale = currentScale}, main)
+            create('UIScale', {Name = '#scale', Scale = 1}, main)
             makeCorner(main, cornerPx)
 
             local bg = create('Frame', {
@@ -2344,7 +2379,7 @@ do
             end
             local main = self.instances.main
             task.spawn(function()
-                tween(main['#scale'], {Scale = currentScale * 0.6}, 0.3, 1).Completed:Wait()
+                tween(main['#scale'], {Scale = 0.6}, 0.3, 1).Completed:Wait()
                 if (main and main.Parent) then
                     main:Destroy()
                 end
@@ -2394,7 +2429,7 @@ do
 
             local insts = {}
             insts.main = self.instances.main:Clone()
-            insts.main['#scale'].Scale = currentScale
+            insts.main['#scale'].Scale = 1
 
             local titleBar = insts.main['#title-bar']
             insts.buttonClose = titleBar['#button-close']
@@ -2699,16 +2734,20 @@ do
                 CanvasSize = UDim2.fromOffset(0, 0),
                 MidImage = 'rbxassetid://9416839567',
                 Name = '#menuFrame',
-                Position = UDim2.fromOffset(2, 2),
+                Position = UDim2.fromScale(0, 0),
                 ScrollBarImageColor3 = theme.StrokeHover,
                 ScrollBarImageTransparency = 0.5,
                 ScrollBarThickness = 2,
                 ScrollingDirection = Enum.ScrollingDirection.Y,
                 ScrollingEnabled = true,
-                Size = UDim2.new(1, -4, 1, -4),
+                Size = UDim2.fromScale(1 / currentScale, 1 / currentScale),
                 TopImage = 'rbxassetid://9416839567',
                 ZIndex = 30
             })
+            create('UIScale', {
+                Name = '#content-scale',
+                Scale = currentScale
+            }, menuFrame)
             instances.menuFrame = menuFrame
 
             local leftRegion = create('Frame', {
@@ -2794,7 +2833,7 @@ do
 
         menu.select = function(self)
             for _, m in ipairs(self.window.menus) do
-                tween(m.instances.menuFrame, {Position = UDim2.new(0, 2, m.id - self.id, 2)}, 0.35, 1)
+                tween(m.instances.menuFrame, {Position = UDim2.fromScale(0, m.id - self.id)}, 0.35, 1)
                 if (m ~= self) then
                     m:deselect()
                 end
@@ -2855,6 +2894,8 @@ do
 
             local insts = {}
             insts.menuFrame = self.instances.menuFrame:Clone()
+            insts.menuFrame['#content-scale'].Scale = currentScale
+            insts.menuFrame.Size = UDim2.fromScale(1 / currentScale, 1 / currentScale)
             insts.leftRegion = insts.menuFrame['#left-region']
             insts.rightRegion = insts.menuFrame['#right-region']
             insts.pageSelector = self.instances.pageSelector:Clone()
@@ -2891,7 +2932,7 @@ do
                 m:select()
             end)
             menuTab.Text = s_text
-            menuFrame.Position = UDim2.new(0, 2, m.id - 1, 2)
+            menuFrame.Position = UDim2.fromScale(0, m.id - 1)
 
             menuTab.Parent = self.instances.tabMenu
             menuFrame.Parent = self.instances.pageRegion
@@ -4327,50 +4368,19 @@ do
             local controlFrame = create('Frame', {
                 BackgroundTransparency = 1,
                 Name = '#control',
-                Size = UDim2.new(1, 0, 0, 32),
+                Size = UDim2.new(1, 0, 0, 24),
                 ZIndex = 34
             })
             instances.controlFrame = controlFrame
-
-            local title = create('TextLabel', {
-                BackgroundTransparency = 1,
-                Font = currentFont,
-                Name = '#label',
-                Position = UDim2.fromOffset(0, 1),
-                Size = UDim2.new(0.68, 0, 0, 15),
-                Text = 'slider',
-                TextColor3 = theme.TextPrimary,
-                TextSize = 12,
-                TextStrokeColor3 = theme.TextStroke,
-                TextStrokeTransparency = 0.85,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                ZIndex = 35
-            }, controlFrame)
-            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, title)
-
-            local val = create('TextLabel', {
-                BackgroundTransparency = 1,
-                Font = currentFont,
-                Name = '#val',
-                Position = UDim2.new(0.68, 0, 0, 1),
-                Size = UDim2.new(0.32, 0, 0, 15),
-                Text = '0',
-                TextColor3 = theme.TextDim,
-                TextSize = 11,
-                TextStrokeColor3 = theme.TextStroke,
-                TextStrokeTransparency = 0.85,
-                TextXAlignment = Enum.TextXAlignment.Right,
-                ZIndex = 35
-            }, controlFrame)
-            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
 
             local sliderContainer = create('Frame', {
                 Active = true,
                 BackgroundColor3 = theme.Inset1,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Name = '#slider-container',
-                Position = UDim2.fromOffset(5, 19),
-                Size = UDim2.new(1, -10, 0, 9),
+                Position = UDim2.fromOffset(5, 2),
+                Size = UDim2.new(1, -10, 0, 20),
                 ZIndex = 35
             }, controlFrame)
             makeCorner(sliderContainer, cornerPx)
@@ -4379,6 +4389,7 @@ do
             local sliderFill = create('Frame', {
                 Active = false,
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 0.25,
                 BorderSizePixel = 0,
                 Name = '#slider-fill',
                 Size = UDim2.fromScale(0, 1),
@@ -4390,14 +4401,45 @@ do
 
             create('Frame', {
                 AnchorPoint = Vector2.new(1, 0),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BackgroundTransparency = 0.2,
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 0.1,
                 BorderSizePixel = 0,
                 Name = '#cap',
                 Position = UDim2.fromScale(1, 0),
-                Size = UDim2.new(0, 2, 1, 0),
+                Size = UDim2.new(0, 1, 1, 0),
                 ZIndex = 37
             }, sliderFill)
+
+            local title = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Size = UDim2.new(0.65, 0, 1, 0),
+                Text = 'slider',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.72,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 38
+            }, sliderContainer)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, title)
+
+            local val = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#val',
+                Position = UDim2.fromScale(0.55, 0),
+                Size = UDim2.new(0.45, 0, 1, 0),
+                Text = '0',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.72,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 38
+            }, sliderContainer)
+            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
 
             local inputBox = create('TextBox', {
                 Active = true,
@@ -4409,8 +4451,8 @@ do
                 Name = '#input-box',
                 PlaceholderColor3 = theme.TextDim,
                 PlaceholderText = 'enter value',
-                Position = UDim2.fromOffset(0, -18),
-                Size = UDim2.new(1, 0, 0, 27),
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.fromScale(1, 1),
                 Text = '',
                 TextColor3 = theme.TextPrimary,
                 TextSize = 12,
@@ -4439,14 +4481,14 @@ do
                     self.focused = true
                     self:showTooltip()
                     tween(inst['#stroke'], {Color = self.dragging and theme.Primary or theme.StrokeHover}, 0.16, 1)
-                    tween(self.instances.value, {TextColor3 = theme.TextPrimary}, 0.16, 1)
+                    tween(self.instances.fill, {BackgroundTransparency = 0.14}, 0.16, 1)
                 end,
                 MouseLeave = function(inst, self)
                     self.focused = false
                     self:hideTooltip()
                     if (not self.dragging) then
                         tween(inst['#stroke'], {Color = theme.Stroke}, 0.16, 1)
-                        tween(self.instances.value, {TextColor3 = theme.TextDim}, 0.16, 1)
+                        tween(self.instances.fill, {BackgroundTransparency = 0.25}, 0.16, 1)
                     end
                 end
             }
@@ -4458,9 +4500,9 @@ do
 
             local insts = {}
             insts.controlFrame = self.instances.controlFrame:Clone()
-            insts.label = insts.controlFrame['#label']
-            insts.value = insts.controlFrame['#val']
             insts.container = insts.controlFrame['#slider-container']
+            insts.label = insts.container['#label']
+            insts.value = insts.container['#val']
             insts.fill = insts.container['#slider-fill']
             insts.input = insts.container['#input-box']
 
@@ -4516,7 +4558,7 @@ do
                     if (io.UserInputType == Enum.UserInputType.MouseButton1) then
                         new.dragging = true
                         tween(sliderInst['#stroke'], {Color = theme.Primary}, 0.14, 1)
-                        tween(valLbl, {TextColor3 = theme.Primary}, 0.14, 1)
+                        tween(fill, {BackgroundTransparency = 0.1}, 0.14, 1)
                         applyAtX(io.Position.X)
 
                         if (acon) then acon:Disconnect() end
@@ -4543,7 +4585,7 @@ do
                                     tween(fill, {Size = targetSize}, 0.16, 1)
                                 end
                                 tween(sliderInst['#stroke'], {Color = new.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
-                                tween(valLbl, {TextColor3 = new.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+                                tween(fill, {BackgroundTransparency = new.focused and 0.14 or 0.25}, 0.16, 1)
                             end
                         end)
                     elseif (io.UserInputType == Enum.UserInputType.MouseButton2) then
@@ -4745,7 +4787,7 @@ do
             local mouseLoc = inputService:GetMouseLocation()
             local inset = guiService:GetGuiInset()
             local screenSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or guiService:GetScreenResolution()
-            local margin = 310 * currentScale
+            local margin = 310
             local pos = Vector2.new(
                 math.clamp(mouseLoc.X + 12, 12, math.max(12, screenSize.X - margin)),
                 math.clamp(mouseLoc.Y - inset.Y + 12, 12, math.max(12, screenSize.Y - inset.Y - margin))
@@ -6203,50 +6245,19 @@ do
             local controlFrame = create('Frame', {
                 BackgroundTransparency = 1,
                 Name = '#control',
-                Size = UDim2.new(1, 0, 0, 32),
+                Size = UDim2.new(1, 0, 0, 24),
                 ZIndex = 34
             })
             instances.controlFrame = controlFrame
-
-            local title = create('TextLabel', {
-                BackgroundTransparency = 1,
-                Font = currentFont,
-                Name = '#label',
-                Position = UDim2.fromOffset(0, 1),
-                Size = UDim2.new(0.58, 0, 0, 15),
-                Text = 'range',
-                TextColor3 = theme.TextPrimary,
-                TextSize = 12,
-                TextStrokeColor3 = theme.TextStroke,
-                TextStrokeTransparency = 0.85,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                ZIndex = 35
-            }, controlFrame)
-            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, title)
-
-            local val = create('TextLabel', {
-                BackgroundTransparency = 1,
-                Font = currentFont,
-                Name = '#val',
-                Position = UDim2.new(0.55, 0, 0, 1),
-                Size = UDim2.new(0.45, 0, 0, 15),
-                Text = '0 - 100',
-                TextColor3 = theme.TextDim,
-                TextSize = 11,
-                TextStrokeColor3 = theme.TextStroke,
-                TextStrokeTransparency = 0.85,
-                TextXAlignment = Enum.TextXAlignment.Right,
-                ZIndex = 35
-            }, controlFrame)
-            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
 
             local track = create('Frame', {
                 Active = true,
                 BackgroundColor3 = theme.Inset1,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Name = '#track',
-                Position = UDim2.fromOffset(5, 19),
-                Size = UDim2.new(1, -10, 0, 9),
+                Position = UDim2.fromOffset(5, 2),
+                Size = UDim2.new(1, -10, 0, 20),
                 ZIndex = 35
             }, controlFrame)
             makeCorner(track, cornerPx)
@@ -6255,6 +6266,7 @@ do
             local fill = create('Frame', {
                 Active = false,
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 0.25,
                 BorderSizePixel = 0,
                 Name = '#fill',
                 Position = UDim2.fromScale(0, 0),
@@ -6266,25 +6278,56 @@ do
             makeTopSheen(fill, 37)
 
             create('Frame', {
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BackgroundTransparency = 0.2,
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 0.1,
                 BorderSizePixel = 0,
                 Name = '#cap-l',
                 Position = UDim2.fromScale(0, 0),
-                Size = UDim2.new(0, 2, 1, 0),
+                Size = UDim2.new(0, 1, 1, 0),
                 ZIndex = 37
             }, fill)
 
             create('Frame', {
                 AnchorPoint = Vector2.new(1, 0),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BackgroundTransparency = 0.2,
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 0.1,
                 BorderSizePixel = 0,
                 Name = '#cap-r',
                 Position = UDim2.fromScale(1, 0),
-                Size = UDim2.new(0, 2, 1, 0),
+                Size = UDim2.new(0, 1, 1, 0),
                 ZIndex = 37
             }, fill)
+
+            local title = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Size = UDim2.new(0.55, 0, 1, 0),
+                Text = 'range',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.72,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 38
+            }, track)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, title)
+
+            local val = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#val',
+                Position = UDim2.fromScale(0.5, 0),
+                Size = UDim2.new(0.5, 0, 1, 0),
+                Text = '0 - 100',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.72,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 38
+            }, track)
+            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
         end
         rangeSlider.instances = instances
 
@@ -6338,23 +6381,23 @@ do
             new.binds = {}
             local insts = {}
             insts.controlFrame = self.instances.controlFrame:Clone()
-            insts.label = insts.controlFrame['#label']
-            insts.value = insts.controlFrame['#val']
             insts.track = insts.controlFrame['#track']
+            insts.label = insts.track['#label']
+            insts.value = insts.track['#val']
             insts.fill = insts.track['#fill']
 
             insts.track.MouseEnter:Connect(function()
                 new.focused = true
                 new:showTooltip()
                 tween(insts.track['#stroke'], {Color = new.dragging and theme.Primary or theme.StrokeHover}, 0.14, 1)
-                tween(insts.value, {TextColor3 = theme.TextPrimary}, 0.14, 1)
+                tween(insts.fill, {BackgroundTransparency = 0.14}, 0.14, 1)
             end)
             insts.track.MouseLeave:Connect(function()
                 new.focused = false
                 new:hideTooltip()
                 if (not new.dragging) then
                     tween(insts.track['#stroke'], {Color = theme.Stroke}, 0.14, 1)
-                    tween(insts.value, {TextColor3 = theme.TextDim}, 0.14, 1)
+                    tween(insts.fill, {BackgroundTransparency = 0.25}, 0.14, 1)
                 end
             end)
 
@@ -6389,7 +6432,7 @@ do
                     activeHandle = (math.abs(clickVal - new.low) <= math.abs(clickVal - new.high)) and 'low' or 'high'
                     new.dragging = true
                     tween(insts.track['#stroke'], {Color = theme.Primary}, 0.14, 1)
-                    tween(insts.value, {TextColor3 = theme.Primary}, 0.14, 1)
+                    tween(insts.fill, {BackgroundTransparency = 0.1}, 0.14, 1)
                     applyDrag(io.Position.X)
 
                     if (dcon) then dcon:Disconnect() end
@@ -6405,7 +6448,7 @@ do
                             if (dcon) then dcon:Disconnect(); dcon = nil end
                             if (econ) then econ:Disconnect(); econ = nil end
                             tween(insts.track['#stroke'], {Color = new.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
-                            tween(insts.value, {TextColor3 = new.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+                            tween(insts.fill, {BackgroundTransparency = new.focused and 0.14 or 0.25}, 0.16, 1)
                         end
                     end)
                 end
@@ -6584,49 +6627,18 @@ do
             local controlFrame = create('Frame', {
                 BackgroundTransparency = 1,
                 Name = '#control',
-                Size = UDim2.new(1, 0, 0, 30),
+                Size = UDim2.new(1, 0, 0, 24),
                 ZIndex = 34
             })
             instances.controlFrame = controlFrame
 
-            local label = create('TextLabel', {
-                BackgroundTransparency = 1,
-                Font = currentFont,
-                Name = '#label',
-                Position = UDim2.fromOffset(0, 1),
-                Size = UDim2.new(0.68, 0, 0, 14),
-                Text = 'progress',
-                TextColor3 = theme.TextPrimary,
-                TextSize = 12,
-                TextStrokeColor3 = theme.TextStroke,
-                TextStrokeTransparency = 0.85,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                ZIndex = 35
-            }, controlFrame)
-            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, label)
-
-            local val = create('TextLabel', {
-                BackgroundTransparency = 1,
-                Font = currentFont,
-                Name = '#val',
-                Position = UDim2.new(0.68, 0, 0, 1),
-                Size = UDim2.new(0.32, 0, 0, 14),
-                Text = '0%',
-                TextColor3 = theme.TextDim,
-                TextSize = 11,
-                TextStrokeColor3 = theme.TextStroke,
-                TextStrokeTransparency = 0.85,
-                TextXAlignment = Enum.TextXAlignment.Right,
-                ZIndex = 35
-            }, controlFrame)
-            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
-
             local track = create('Frame', {
                 BackgroundColor3 = theme.Inset1,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Name = '#track',
-                Position = UDim2.fromOffset(5, 18),
-                Size = UDim2.new(1, -10, 0, 7),
+                Position = UDim2.fromOffset(5, 2),
+                Size = UDim2.new(1, -10, 0, 20),
                 ZIndex = 35
             }, controlFrame)
             makeCorner(track, cornerPx)
@@ -6634,6 +6646,7 @@ do
 
             local fill = create('Frame', {
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 0.25,
                 BorderSizePixel = 0,
                 Name = '#fill',
                 Size = UDim2.fromScale(0, 1),
@@ -6642,6 +6655,37 @@ do
             makeCorner(fill, cornerPx)
             makeGradient(fill, theme.Primary, theme.Secondary, 0)
             makeTopSheen(fill, 37)
+
+            local label = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Size = UDim2.new(0.65, 0, 1, 0),
+                Text = 'progress',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.72,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 38
+            }, track)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, label)
+
+            local val = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#val',
+                Position = UDim2.fromScale(0.55, 0),
+                Size = UDim2.new(0.45, 0, 1, 0),
+                Text = '0%',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.72,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 38
+            }, track)
+            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
         end
         progressBar.instances = instances
         progressBar.value = 0
@@ -6679,9 +6723,9 @@ do
             new.binds = {}
             local insts = {}
             insts.controlFrame = self.instances.controlFrame:Clone()
-            insts.label = insts.controlFrame['#label']
-            insts.value = insts.controlFrame['#val']
             insts.track = insts.controlFrame['#track']
+            insts.label = insts.track['#label']
+            insts.value = insts.track['#val']
             insts.fill = insts.track['#fill']
             new.instances = insts
             return new
@@ -7187,38 +7231,37 @@ do
             return error('expected type number for scale', 2)
         end
         currentScale = math.clamp(scale, 0.5, 2.5)
+        local inv = 1 / currentScale
 
-        if (notifScale) then
-            notifScale.Scale = currentScale
-        end
-        if (tooltip.instances and tooltip.instances.main and tooltip.instances.main:FindFirstChild('#scale')) then
-            tooltip.instances.main['#scale'].Scale = currentScale
-        end
-        if (hint.instances and hint.instances.main and hint.instances.main:FindFirstChild('#scale')) then
-            hint.instances.main['#scale'].Scale = currentScale
-        end
-        if (ui._watermarkFrame and ui._watermarkFrame:FindFirstChild('#scale')) then
-            ui._watermarkFrame['#scale'].Scale = currentScale
-        end
-        if (ui._keybindListFrame and ui._keybindListFrame:FindFirstChild('#scale')) then
-            ui._keybindListFrame['#scale'].Scale = currentScale
-        end
         for _, w in ipairs(ui.windows) do
-            if (w.instances and w.instances.mainFrame and w.instances.mainFrame:FindFirstChild('#scale')) then
-                w.instances.mainFrame['#scale'].Scale = currentScale
+            if (w.instances) then
+                if (w.instances.tabMenu and w.instances.tabMenu:FindFirstChild('#content-scale')) then
+                    w.instances.tabMenu['#content-scale'].Scale = currentScale
+                    w.instances.tabMenu.Size = UDim2.fromScale(inv, inv)
+                end
+            end
+            for _, m in ipairs(w.menus) do
+                if (m.instances and m.instances.menuFrame and m.instances.menuFrame:FindFirstChild('#content-scale')) then
+                    m.instances.menuFrame['#content-scale'].Scale = currentScale
+                    m.instances.menuFrame.Size = UDim2.fromScale(inv, inv)
+                end
             end
         end
-        for _, pw in ipairs(ui.pickerWindows) do
-            if (pw.instances and pw.instances.main and pw.instances.main:FindFirstChild('#scale')) then
-                pw.instances.main['#scale'].Scale = currentScale
-            end
-        end
+
         if (elemClasses) then
-            if (elemClasses.window and elemClasses.window.instances.mainFrame:FindFirstChild('#scale')) then
-                elemClasses.window.instances.mainFrame['#scale'].Scale = currentScale
+            if (elemClasses.window and elemClasses.window.instances.mainFrame) then
+                local tm = elemClasses.window.instances.mainFrame['#sidebar']['#menu']
+                if (tm:FindFirstChild('#content-scale')) then
+                    tm['#content-scale'].Scale = currentScale
+                    tm.Size = UDim2.fromScale(inv, inv)
+                end
             end
-            if (elemClasses.pickerWindow and elemClasses.pickerWindow.instances.main:FindFirstChild('#scale')) then
-                elemClasses.pickerWindow.instances.main['#scale'].Scale = currentScale
+            if (elemClasses.menu and elemClasses.menu.instances.menuFrame) then
+                local mf = elemClasses.menu.instances.menuFrame
+                if (mf:FindFirstChild('#content-scale')) then
+                    mf['#content-scale'].Scale = currentScale
+                    mf.Size = UDim2.fromScale(inv, inv)
+                end
             end
         end
 
@@ -7433,7 +7476,7 @@ do
             Visible = false,
             ZIndex = 2600
         }, uiScreen)
-        create('UIScale', {Name = '#scale', Scale = currentScale}, wmFrame)
+        create('UIScale', {Name = '#scale', Scale = 1}, wmFrame)
         makeCorner(wmFrame, cornerPx)
         makeStroke(wmFrame, theme.Stroke, 1)
         local wmTrim = create('Frame', {
@@ -7493,7 +7536,7 @@ do
             Visible = false,
             ZIndex = 2500
         }, uiScreen)
-        create('UIScale', {Name = '#scale', Scale = currentScale}, kbFrame)
+        create('UIScale', {Name = '#scale', Scale = 1}, kbFrame)
         makeCorner(kbFrame, cornerPx)
         makeStroke(kbFrame, theme.Stroke, 1)
         local kbTrim = create('Frame', {

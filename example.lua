@@ -2,14 +2,13 @@ local uiLoader = loadstring(game:HttpGet('https://raw.githubusercontent.com/x8lu
 
 local ui = uiLoader({
     rounding = false,
-    theme = 'cherry',
     smoothDragging = false,
     font = 'gotham',
     scale = 1
 })
 
 ui.autoDisableToggles = true
-ui.setWatermark('LARPWare | v2.0 | cherry', true)
+ui.setWatermark('LARPWare | v2.0', true)
 ui.toggleKeybindList(true)
 
 local window = ui.newWindow({
