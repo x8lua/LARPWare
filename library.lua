@@ -21,7 +21,7 @@ end
 local currentTextScale = 1
 local currentTransparency = 0
 local enableIntro = true
-local enableMobileButton = true
+local enableMobileButton = (inputService.TouchEnabled and not inputService.KeyboardEnabled)
 local theme
 
 local function isPrimaryInput(io)
