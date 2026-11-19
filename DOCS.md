@@ -113,7 +113,7 @@ local window = ui.newWindow({
 | `position` | `UDim2` | auto-staggered | Initial window position. |
 | `icon` | `string` | `nil` | Optional `rbxassetid://...` titlebar icon. |
 
-**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:playIntro()`, `window:getPreferenceMenu()`, `window:configureConfigs(opts)`, `window:setConfigs(list, selected?)`, `window:getConfigs()`, `window:getSelectedConfig()`, `window:getConfigName()`, `window:destroy()`.
+**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:popup(settings)`, `window:playIntro()`, `window:getPreferenceMenu()`, `window:configureConfigs(opts)`, `window:setConfigs(list, selected?)`, `window:getConfigs()`, `window:getSelectedConfig()`, `window:getConfigName()`, `window:destroy()`.
 
 ### Script-Adjustable Configs (`Preference` Tab)
 
@@ -475,7 +475,63 @@ Every change updates all live windows, controls, HUD overlays, and future cloned
 
 ---
 
-## 6. Notifications, HUD & Intro
+## 6. Popups, Notifications, HUD & Intro
+
+### Centered In-Window Popup — `window:popup(settings)` / `ui.popup(settings)`
+
+Displays a centered modal dialog directly inside the LARPWare window with a dimmed in-window scrim, title, optional badge, wrapped `RichText` content, and customizable action buttons.
+
+```lua
+local pop = window:popup({
+    title = 'confirm reset',
+    badge = 'CONFIRM',
+    content = 'This will restore all module settings back to default values. Continue?',
+    width = 336,
+    dismissOnBackdrop = true,
+    dismissOnEscape = true,
+    showClose = true,
+    buttons = {
+        {
+            text = 'cancel',
+            style = 'secondary',
+            callback = function(p)
+                print('cancelled')
+            end
+        },
+        {
+            text = 'reset',
+            style = 'danger',
+            callback = function(p)
+                print('reset!')
+            end
+        },
+        {
+            text = 'confirm',
+            style = 'primary',
+            autoClose = true,
+            callback = function(p)
+                print('confirmed!')
+            end
+        }
+    }
+})
+```
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `title` | `string` | `'notice'` | Header title (`RichText` supported). |
+| `content` | `string` | `''` | Body message (`RichText` + auto-wrap supported; aliases: `message`, `desc`). |
+| `badge` | `string` | `nil` | Optional compact accent badge shown in the header. |
+| `width` | `number` | `336` | Card width in pixels (clamped automatically to fit inside the window). |
+| `buttons` | `table` | `{{text='ok', style='primary'}}` | List of button tables `{ text, style = 'primary' \| 'danger' \| 'secondary', autoClose = true, callback = fn(pop) }`. |
+| `dismissOnBackdrop` | `boolean` | `true` | Clicking the dimmed backdrop closes the popup. |
+| `dismissOnEscape` | `boolean` | `true` | Pressing `Escape` closes the popup. |
+| `showClose` | `boolean` | `true` | Displays the header `X` close button. |
+| `stack` | `boolean` | `false` | By default, opening a new popup replaces the existing one on that window. Set `true` to stack. |
+
+- **Popup Methods**: `pop:close()`, `pop:setTitle(text)`, `pop:setContent(text)`, `pop:isOpen()`, `pop:bindToEvent('onClose', fn)`.
+
+### Notifications, HUD & Intro
 
 ```lua
 ui.notify({

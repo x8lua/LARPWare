@@ -3547,6 +3547,422 @@ do
         end
         window.getSettingsMenu = window.getPreferenceMenu
 
+        window.popup = function(self, settings)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for popup settings', 2)
+            end
+            local mf = self.instances and self.instances.mainFrame
+            if (not mf or not mf.Parent) then return nil end
+
+            if (not settings.stack and self._activePopup and typeof(self._activePopup.close) == 'function') then
+                self._activePopup:close(true)
+            end
+
+            local s_title = tostring(settings.title or settings.text or 'notice')
+            local s_content = tostring(settings.content or settings.message or settings.desc or '')
+            local s_badge = settings.badge
+            local s_width = math.clamp(settings.width or 336, 220, math.max(240, math.floor(mf.AbsoluteSize.X - 36)))
+            local s_dismissBackdrop = (settings.dismissOnBackdrop == nil) and true or (settings.dismissOnBackdrop and true or false)
+            local s_dismissEsc = (settings.dismissOnEscape == nil) and true or (settings.dismissOnEscape and true or false)
+            local s_showClose = (settings.showClose == nil) and true or (settings.showClose and true or false)
+            local s_buttons = settings.buttons
+            if (typeof(s_buttons) ~= 'table' or #s_buttons == 0) then
+                s_buttons = {{text = 'ok', style = 'primary'}}
+            end
+
+            local overlay = create('TextButton', {
+                Active = true,
+                AutoButtonColor = false,
+                BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#popup-overlay',
+                Position = UDim2.fromOffset(0, 1),
+                Size = UDim2.new(1, 0, 1, -1),
+                Text = '',
+                ZIndex = 110
+            }, mf)
+            makeCorner(overlay, cornerPx)
+
+            local card = create('Frame', {
+                Active = true,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = theme.Window1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#popup-card',
+                Position = UDim2.fromScale(0.5, 0.53),
+                Size = UDim2.fromOffset(s_width, 0),
+                ZIndex = 112
+            }, overlay)
+            makeCorner(card, cornerPx)
+            makeStroke(card, theme.StrokeHover, 1)
+            local cardScale = create('UIScale', {Name = '#scale', Scale = 0.90}, card)
+
+            local inner = create('Frame', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Name = '#popup-inner',
+                Size = UDim2.fromScale(1, 0),
+                ZIndex = 113
+            }, card)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Vertical,
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                VerticalAlignment = Enum.VerticalAlignment.Top
+            }, inner)
+
+            local header = create('Frame', {
+                BackgroundColor3 = theme.Window3,
+                BorderSizePixel = 0,
+                LayoutOrder = 1,
+                Name = '#header',
+                Size = UDim2.new(1, 0, 0, 32),
+                ZIndex = 114
+            }, inner)
+            makeGradient(header, Color3.fromRGB(255, 255, 255), Color3.fromRGB(228, 228, 228), 90)
+            local pTrim = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#trim',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, 0, 0, 2),
+                ZIndex = 116
+            }, header)
+            makeGradient(pTrim, theme.Primary, theme.Secondary, 0)
+            create('Frame', {
+                BackgroundColor3 = theme.Stroke,
+                BorderSizePixel = 0,
+                Name = '#sep',
+                Position = UDim2.new(0, 0, 1, -1),
+                Size = UDim2.new(1, 0, 0, 1),
+                ZIndex = 115
+            }, header)
+
+            local titleAccent = create('Frame', {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#title-accent',
+                Position = UDim2.new(0, 10, 0.5, 1),
+                Size = UDim2.fromOffset(2, 12),
+                ZIndex = 115
+            }, header)
+            makeGradient(titleAccent, theme.Primary, theme.Secondary, 90)
+
+            local rightReserved = s_showClose and 32 or 12
+            if (s_badge and tostring(s_badge) ~= '') then
+                rightReserved += 64
+            end
+
+            local titleLbl = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#title',
+                Position = UDim2.fromOffset(18, 1),
+                RichText = true,
+                Size = UDim2.new(1, -18 - rightReserved, 1, -1),
+                Text = s_title,
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                ZIndex = 115
+            }, header)
+
+            if (s_badge and tostring(s_badge) ~= '') then
+                local pill = create('Frame', {
+                    AnchorPoint = Vector2.new(1, 0.5),
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    BackgroundColor3 = theme.Inset1,
+                    BorderSizePixel = 0,
+                    Name = '#badge',
+                    Position = UDim2.new(1, s_showClose and -32 or -10, 0.5, 1),
+                    Size = UDim2.fromOffset(0, 17),
+                    ZIndex = 115
+                }, header)
+                makeCorner(pill, cornerPx)
+                makeStroke(pill, theme.StrokeHover, 1)
+                local bLbl = create('TextLabel', {
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    BackgroundTransparency = 1,
+                    Font = currentFont,
+                    Name = '#label',
+                    Size = UDim2.fromOffset(0, 17),
+                    Text = tostring(s_badge),
+                    TextColor3 = theme.Primary,
+                    TextSize = 9,
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                    ZIndex = 116
+                }, pill)
+                create('UIPadding', {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, bLbl)
+            end
+
+            local closeBtn
+            if (s_showClose) then
+                closeBtn = create('TextButton', {
+                    AnchorPoint = Vector2.new(1, 0.5),
+                    AutoButtonColor = false,
+                    BackgroundColor3 = theme.Button1,
+                    BorderSizePixel = 0,
+                    Name = '#close',
+                    Position = UDim2.new(1, -8, 0.5, 1),
+                    Size = UDim2.fromOffset(18, 18),
+                    Text = '',
+                    ZIndex = 115
+                }, header)
+                makeCorner(closeBtn, cornerPx)
+                makeStroke(closeBtn, theme.Stroke, 1)
+                makeCloseGlyph(closeBtn, 116)
+            end
+
+            local bodyWrap = create('Frame', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = theme.Window2,
+                BorderSizePixel = 0,
+                LayoutOrder = 2,
+                Name = '#content-wrap',
+                Size = UDim2.new(1, 0, 0, 0),
+                ZIndex = 113
+            }, inner)
+            create('UIPadding', {
+                PaddingLeft = UDim.new(0, 12),
+                PaddingRight = UDim.new(0, 12),
+                PaddingTop = UDim.new(0, 11),
+                PaddingBottom = UDim.new(0, 11)
+            }, bodyWrap)
+
+            local contentLbl = create('TextLabel', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#content',
+                RichText = true,
+                Size = UDim2.new(1, 0, 0, 0),
+                Text = s_content,
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                ZIndex = 114
+            }, bodyWrap)
+
+            local actionsWrap = create('Frame', {
+                BackgroundColor3 = theme.Window2,
+                BorderSizePixel = 0,
+                LayoutOrder = 3,
+                Name = '#actions-wrap',
+                Size = UDim2.new(1, 0, 0, 40),
+                ZIndex = 113
+            }, inner)
+            create('UIPadding', {
+                PaddingLeft = UDim.new(0, 12),
+                PaddingRight = UDim.new(0, 12),
+                PaddingTop = UDim.new(0, 2),
+                PaddingBottom = UDim.new(0, 10)
+            }, actionsWrap)
+
+            local actionsRow = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#actions',
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 114
+            }, actionsWrap)
+            local gap = 6
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Horizontal,
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                Padding = UDim.new(0, gap),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                VerticalAlignment = Enum.VerticalAlignment.Center
+            }, actionsRow)
+
+            local pop = setmetatable({
+                binds = {},
+                open = true,
+                window = self,
+                instances = {
+                    overlay = overlay,
+                    card = card,
+                    title = titleLbl,
+                    content = contentLbl,
+                    actions = actionsRow
+                }
+            }, elemClasses.baseElement)
+            pop.class = 'popup'
+            pop.name = s_title
+
+            local escCon
+            pop.close = function(pSelf, instant)
+                if (not pSelf.open) then return pSelf end
+                pSelf.open = false
+                if (self._activePopup == pSelf) then
+                    self._activePopup = nil
+                end
+                if (escCon) then
+                    escCon:Disconnect()
+                    escCon = nil
+                end
+                if (instant) then
+                    if (overlay and overlay.Parent) then
+                        overlay:Destroy()
+                    end
+                    pSelf:fireEvent('onClose')
+                    return pSelf
+                end
+                tween(overlay, {BackgroundTransparency = 1}, 0.16, 1)
+                tween(cardScale, {Scale = 0.92}, 0.16, 1)
+                tween(card, {Position = UDim2.fromScale(0.5, 0.52)}, 0.16, 1)
+                task.delay(0.17, function()
+                    if (overlay and overlay.Parent) then
+                        overlay:Destroy()
+                    end
+                    pSelf:fireEvent('onClose')
+                end)
+                return pSelf
+            end
+
+            pop.setTitle = function(pSelf, txt)
+                titleLbl.Text = tostring(txt or '')
+                pSelf.name = titleLbl.Text
+                return pSelf
+            end
+
+            pop.setContent = function(pSelf, txt)
+                contentLbl.Text = tostring(txt or '')
+                return pSelf
+            end
+
+            pop.isOpen = function(pSelf)
+                return pSelf.open == true
+            end
+
+            local btnCount = #s_buttons
+            local perOffset = -math.floor(gap * (btnCount - 1) / btnCount + 0.5)
+            for idx, bCfg in ipairs(s_buttons) do
+                local bText = tostring(bCfg.text or 'button')
+                local bStyle = tostring(bCfg.style or 'secondary'):lower()
+                local bAutoClose = (bCfg.autoClose == nil) and true or (bCfg.autoClose and true or false)
+
+                local btn = create('TextButton', {
+                    AutoButtonColor = false,
+                    BackgroundColor3 = (bStyle == 'primary' or bStyle == 'danger') and Color3.fromRGB(255, 255, 255) or theme.Button1,
+                    BorderSizePixel = 0,
+                    Font = currentFont,
+                    LayoutOrder = idx,
+                    Name = '#pbtn-' .. idx,
+                    Size = UDim2.new(1 / btnCount, perOffset, 1, 0),
+                    Text = bText,
+                    TextColor3 = (bStyle == 'primary' or bStyle == 'danger') and theme.TextPrimary or theme.TextDim,
+                    TextSize = 11,
+                    TextStrokeColor3 = theme.TextStroke,
+                    TextStrokeTransparency = (bStyle == 'primary' or bStyle == 'danger') and 0.72 or 0.85,
+                    ZIndex = 115
+                }, actionsRow)
+                makeCorner(btn, cornerPx)
+                makeTopSheen(btn, 116)
+
+                if (bStyle == 'primary') then
+                    local grad = makeGradient(btn, theme.Primary, theme.Secondary, 90)
+                    local st = makeStroke(btn, blendColor(theme.Primary, Color3.fromRGB(255, 255, 255), 0.16), 1)
+                    st:SetAttribute('ThemeStroke', nil)
+                    btn.MouseEnter:Connect(function()
+                        grad.Color = ColorSequence.new(
+                            blendColor(theme.Primary, Color3.fromRGB(255, 255, 255), 0.14),
+                            blendColor(theme.Secondary, Color3.fromRGB(255, 255, 255), 0.12)
+                        )
+                        tween(st, {Color = Color3.fromRGB(255, 200, 205)}, 0.14, 1)
+                    end)
+                    btn.MouseLeave:Connect(function()
+                        grad.Color = ColorSequence.new(theme.Primary, theme.Secondary)
+                        tween(st, {Color = blendColor(theme.Primary, Color3.fromRGB(255, 255, 255), 0.16)}, 0.14, 1)
+                    end)
+                elseif (bStyle == 'danger') then
+                    local d1, d2 = Color3.fromRGB(196, 28, 42), Color3.fromRGB(122, 14, 26)
+                    local grad = makeGradient(btn, d1, d2, 90)
+                    local st = makeStroke(btn, Color3.fromRGB(224, 72, 86), 1)
+                    st:SetAttribute('ThemeStroke', nil)
+                    btn.MouseEnter:Connect(function()
+                        grad.Color = ColorSequence.new(blendColor(d1, Color3.fromRGB(255, 255, 255), 0.14), blendColor(d2, Color3.fromRGB(255, 255, 255), 0.10))
+                        tween(st, {Color = Color3.fromRGB(255, 165, 175)}, 0.14, 1)
+                    end)
+                    btn.MouseLeave:Connect(function()
+                        grad.Color = ColorSequence.new(d1, d2)
+                        tween(st, {Color = Color3.fromRGB(224, 72, 86)}, 0.14, 1)
+                    end)
+                else
+                    makeStroke(btn, theme.Stroke, 1)
+                    btn.MouseEnter:Connect(function()
+                        tween(btn, {BackgroundColor3 = theme.Button2, TextColor3 = theme.TextPrimary}, 0.14, 1)
+                        tween(btn['#stroke'], {Color = theme.StrokeHover}, 0.14, 1)
+                    end)
+                    btn.MouseLeave:Connect(function()
+                        tween(btn, {BackgroundColor3 = theme.Button1, TextColor3 = theme.TextDim}, 0.14, 1)
+                        tween(btn['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+                    end)
+                end
+
+                btn.MouseButton1Click:Connect(function()
+                    if (typeof(bCfg.callback) == 'function') then
+                        task.spawn(bCfg.callback, pop)
+                    end
+                    if (bAutoClose) then
+                        pop:close()
+                    end
+                end)
+            end
+
+            if (closeBtn) then
+                closeBtn.MouseEnter:Connect(function()
+                    tween(closeBtn, {BackgroundColor3 = theme.Button2}, 0.14, 1)
+                    tween(closeBtn['#stroke'], {Color = theme.Primary}, 0.14, 1)
+                    setGlyphColor(closeBtn['#icon'], theme.Primary, 0.14)
+                end)
+                closeBtn.MouseLeave:Connect(function()
+                    tween(closeBtn, {BackgroundColor3 = theme.Button1}, 0.14, 1)
+                    tween(closeBtn['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+                    setGlyphColor(closeBtn['#icon'], theme.TextDim, 0.14)
+                end)
+                closeBtn.MouseButton1Click:Connect(function()
+                    pop:close()
+                end)
+            end
+
+            if (s_dismissBackdrop) then
+                overlay.MouseButton1Click:Connect(function()
+                    pop:close()
+                end)
+            end
+
+            if (s_dismissEsc) then
+                escCon = inputService.InputBegan:Connect(function(io)
+                    if (io.UserInputType == Enum.UserInputType.Keyboard and io.KeyCode == Enum.KeyCode.Escape) then
+                        pop:close()
+                    end
+                end)
+                ui.trackConnection(escCon)
+            end
+
+            if (not settings.stack) then
+                self._activePopup = pop
+            end
+
+            tween(overlay, {BackgroundTransparency = 0.44}, 0.22, 1)
+            tween(cardScale, {Scale = 1}, 0.26, 4)
+            tween(card, {Position = UDim2.fromScale(0.5, 0.5)}, 0.26, 1)
+            return pop
+        end
+        window.showPopup = window.popup
+
         window.setIcon = function(self, newIcon)
             local iconInst = self.instances.titleBar['#icon']
             local accentInst = self.instances.titleBar['#title-accent']
@@ -11067,6 +11483,18 @@ do
             playLarpIntro(w, true)
         end
     end
+
+    ui.popup = function(settings)
+        if (typeof(settings) ~= 'table') then
+            return error('expected type table for popup settings', 2)
+        end
+        local w = settings.window or windows[1]
+        if (w) then
+            return w:popup(settings)
+        end
+        return nil
+    end
+    ui.showPopup = ui.popup
 
     ui.resetTheme = function()
         ui.setThemePreset('crimson')

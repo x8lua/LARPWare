@@ -503,5 +503,33 @@ do
             content = 'Right-click any slider bar to type an exact numeric value. Use the top-right magnifying glass to jump to any control across tabs.',
             tooltip = 'Quick usage tips for LARPWare controls'
         })
+
+        listSec:addButton({
+            text = 'open popup dialog',
+            style = 'large',
+            tooltip = 'Demonstrates a centered in-window popup with title, content, and action buttons'
+        }, function()
+            window:popup({
+                title = 'confirm action',
+                badge = 'PROMPT',
+                content = 'This centered dialog renders directly inside LARPWare with customizable buttons, RichText content, and Escape/backdrop dismissal.',
+                buttons = {
+                    {
+                        text = 'cancel',
+                        style = 'secondary',
+                        callback = function()
+                            ui.notify({title = 'popup', message = 'Action cancelled', duration = 2})
+                        end
+                    },
+                    {
+                        text = 'confirm',
+                        style = 'primary',
+                        callback = function()
+                            ui.notify({title = 'popup', message = 'Action confirmed!', duration = 2})
+                        end
+                    }
+                }
+            })
+        end)
     end
 end
