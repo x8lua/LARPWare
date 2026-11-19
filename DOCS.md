@@ -106,13 +106,48 @@ local window = ui.newWindow({
 | `resize` | `boolean` | `false` | Shows bottom-right resize grip and enables window resizing. |
 | `showSettings` | `boolean` | `true` | Shows titlebar appearance popover button. |
 | `showSearch` | `boolean` | `true` | Shows titlebar global control search magnifying glass button. |
-| `defaultSettings` | `boolean` | `true` | Automatically appends the built-in `settings` tab (fonts, scaling, theme presets, live color pickers, transparency, rounding, smooth dragging, menu bind, HUD toggles, profiles, replay intro, unload) pinned to the bottom of the sidebar. |
+| `defaultPreference` | `boolean` | `true` | Automatically appends the built-in `Preference` tab (fonts, scaling, theme presets, live color pickers, transparency, rounding, smooth dragging, menu bind, HUD toggles, script-adjustable profiles, unload) pinned to the bottom of the sidebar. Alias: `defaultSettings`. |
+| `configs` | `table \| false` | `{}` | Optional config profile controller options (`items`, `default`, `searchable`, `placeholder`, `height`, `onSave`, `onLoad`, `onDelete`, `onSelect`). Pass `false` to omit the profiles block completely, or configure dynamically anytime via `window:configureConfigs(opts)`. |
 | `intro` | `boolean` | inherits `uiLoader` | Overrides whether this window plays the in-window `L A R P` intro on open. |
 | `size` | `Vector2 \| UDim2` | `550x376` | Initial window size. |
 | `position` | `UDim2` | auto-staggered | Initial window position. |
 | `icon` | `string` | `nil` | Optional `rbxassetid://...` titlebar icon. |
 
-**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:playIntro()`, `window:getSettingsMenu()`, `window:destroy()`.
+**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:playIntro()`, `window:getPreferenceMenu()`, `window:configureConfigs(opts)`, `window:setConfigs(list, selected?)`, `window:getConfigs()`, `window:getSelectedConfig()`, `window:getConfigName()`, `window:destroy()`.
+
+### Script-Adjustable Configs (`Preference` Tab)
+
+Configs are never hardcoded by the library — your script supplies the profile list and hooks real file/JSON logic:
+
+```lua
+local profiles = {'default', 'farm', 'pvp'}
+window:configureConfigs({
+    items = profiles,
+    default = 'default',
+    onSelect = function(name)
+        print('selected:', name)
+    end,
+    onSave = function(name, selected)
+        if (name == '') then return end
+        if (not table.find(profiles, name)) then
+            table.insert(profiles, name)
+            window:setConfigs(profiles, name)
+        end
+    end,
+    onLoad = function(selected)
+        print('load:', selected)
+    end,
+    onDelete = function(selected)
+        local idx = table.find(profiles, selected)
+        if (idx) then
+            table.remove(profiles, idx)
+            window:setConfigs(profiles, profiles[1])
+        end
+    end
+})
+```
+
+You can also listen to `onConfigSave`, `onConfigLoad`, `onConfigDelete`, and `onConfigSelect` via `window:bindToEvent(...)`, or access the underlying controls directly through `window.configControls` (`nameBox`, `list`, `buttons`, `deleteButton`).
 
 > Tip: `window` supports `hotkey:linkToControl(window)` so a keybind (such as `Enum.KeyCode.RightShift`) can toggle the entire window open/closed.
 

@@ -20,6 +20,36 @@ local window = ui.newWindow({
     position = nil
 })
 
+local demoConfigs = {'default', 'legit', 'rage', 'pvp'}
+window:configureConfigs({
+    items = demoConfigs,
+    default = 'default',
+    onSelect = function(cfg)
+        ui.notify({title = 'config', message = 'Selected: ' .. tostring(cfg), duration = 2})
+    end,
+    onSave = function(name)
+        if (name == '') then return end
+        if (not table.find(demoConfigs, name)) then
+            table.insert(demoConfigs, name)
+            window:setConfigs(demoConfigs, name)
+        end
+        ui.notify({title = 'config', message = 'Saved ' .. name, duration = 2})
+    end,
+    onLoad = function(cfg)
+        if (not cfg) then return end
+        ui.notify({title = 'config', message = 'Loaded ' .. tostring(cfg), duration = 2})
+    end,
+    onDelete = function(cfg)
+        if (not cfg) then return end
+        local idx = table.find(demoConfigs, cfg)
+        if (idx) then
+            table.remove(demoConfigs, idx)
+            window:setConfigs(demoConfigs, demoConfigs[1])
+            ui.notify({title = 'config', message = 'Deleted ' .. tostring(cfg), duration = 2})
+        end
+    end
+})
+
 local combat = window:addMenu({
     text = 'combat'
 })

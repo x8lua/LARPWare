@@ -2069,7 +2069,7 @@ local function makeTabGlyph(parent, hintStr, zIndex)
             ZIndex = zIndex
         }, holder)
         makeCorner(core, 2, true)
-    elseif (key:find('setting') or key:find('config') or key:find('theme') or key:find('system')) then
+    elseif (key:find('setting') or key:find('pref') or key:find('config') or key:find('theme') or key:find('system')) then
         for idx, yPos in ipairs({3, 7, 11}) do
             create('Frame', {
                 Active = false,
@@ -3542,9 +3542,10 @@ do
             return self
         end
 
-        window.getSettingsMenu = function(self)
+        window.getPreferenceMenu = function(self)
             return self._defaultSettingsMenu
         end
+        window.getSettingsMenu = window.getPreferenceMenu
 
         window.setIcon = function(self, newIcon)
             local iconInst = self.instances.titleBar['#icon']
@@ -6959,7 +6960,8 @@ do
                 FillDirection = Enum.FillDirection.Vertical,
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
                 Padding = UDim.new(0, 2),
-                SortOrder = Enum.SortOrder.LayoutOrder
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                VerticalAlignment = Enum.VerticalAlignment.Top
             }, list)
             create('UIPadding', {
                 PaddingTop = UDim.new(0, 3),
@@ -9674,7 +9676,8 @@ do
                 FillDirection = Enum.FillDirection.Vertical,
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
                 Padding = UDim.new(0, 2),
-                SortOrder = Enum.SortOrder.LayoutOrder
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                VerticalAlignment = Enum.VerticalAlignment.Top
             }, list)
             create('UIPadding', {
                 PaddingTop = UDim.new(0, 3),
@@ -10198,16 +10201,17 @@ do
         return currentTextScale
     end
 
-    local function attachDefaultSettingsTab(win)
-        local settingsMenu = win:addMenu({
-            text = 'settings',
+    local function attachDefaultPreferenceTab(win, cfgOpts)
+        local prefMenu = win:addMenu({
+            text = 'Preference',
             icon = 'settings',
             _isDefaultSettings = true
         })
-        win._defaultSettingsMenu = settingsMenu
-        win.settingsMenu = settingsMenu
+        win._defaultSettingsMenu = prefMenu
+        win.preferenceMenu = prefMenu
+        win.settingsMenu = prefMenu
 
-        local appearance = settingsMenu:addSection({
+        local appearance = prefMenu:addSection({
             text = 'appearance & theme',
             side = 'left',
             showMinButton = true,
@@ -10336,11 +10340,11 @@ do
             })
         end)
 
-        local cfgSec = settingsMenu:addSection({
+        local cfgSec = prefMenu:addSection({
             text = 'hud, binds & configs',
             side = 'right',
             showMinButton = true,
-            tooltip = 'Menu hotkey, HUD overlays, config profiles, and safe unload'
+            tooltip = 'Menu hotkey, HUD overlays, script-managed configs, and safe unload'
         })
 
         local menuKey = cfgSec:addHotkey({
@@ -10378,42 +10382,132 @@ do
             end
         end)
 
-        cfgSec:addDivider('profiles')
+        local cfgState = {
+            items = {},
+            onSave = nil,
+            onLoad = nil,
+            onDelete = nil,
+            onSelect = nil
+        }
 
-        local cfgName = cfgSec:addTextbox({
-            text = 'config name',
-            placeholder = 'new config name...',
-            tooltip = 'Optional name used when saving a new profile'
-        })
+        if (cfgOpts ~= false) then
+            local initCfg = (typeof(cfgOpts) == 'table') and cfgOpts or {}
+            cfgState.items = initCfg.items or initCfg.options or {}
+            cfgState.onSave = initCfg.onSave
+            cfgState.onLoad = initCfg.onLoad
+            cfgState.onDelete = initCfg.onDelete
+            cfgState.onSelect = initCfg.onSelect
 
-        local cfgList = cfgSec:addListbox({
-            text = 'saved configs',
-            items = {'default', 'legit', 'rage', 'streamproof', 'tournament'},
-            default = 'default',
-            searchable = false,
-            height = 96,
-            tooltip = 'Click a saved configuration profile to select it'
-        }, function(cfg)
-            ui.notify({
-                title = 'config',
-                message = 'Selected profile: ' .. tostring(cfg),
-                duration = 2
+            cfgSec:addDivider('profiles')
+
+            local cfgName = cfgSec:addTextbox({
+                text = 'config name',
+                placeholder = initCfg.placeholder or 'new config name...',
+                tooltip = 'Name used when saving a configuration profile'
             })
-        end)
 
-        cfgSec:addDualButton({
-            left = 'save config',
-            right = 'load config',
-            tooltip = 'Save current values or load the highlighted profile'
-        }, function()
-            local name = cfgName:getText()
-            if (name == '') then
-                name = tostring(cfgList:getValue() or 'default')
+            local cfgList = cfgSec:addListbox({
+                text = 'saved configs',
+                items = cfgState.items,
+                default = initCfg.default,
+                searchable = initCfg.searchable == true,
+                height = initCfg.height or 96,
+                tooltip = 'Select a saved configuration profile'
+            }, function(cfg)
+                if (typeof(cfgState.onSelect) == 'function') then
+                    cfgState.onSelect(cfg)
+                end
+                win:fireEvent('onConfigSelect', cfg)
+            end)
+
+            local saveLoadBtns = cfgSec:addDualButton({
+                left = 'save config',
+                right = 'load config',
+                tooltip = 'Save current settings or load the highlighted profile'
+            }, function()
+                local name = cfgName:getText()
+                local sel = cfgList:getValue()
+                if (name == '') then
+                    name = sel and tostring(sel) or ''
+                end
+                if (typeof(cfgState.onSave) == 'function') then
+                    cfgState.onSave(name, sel)
+                end
+                win:fireEvent('onConfigSave', name, sel)
+            end, function()
+                local sel = cfgList:getValue()
+                local name = cfgName:getText()
+                if (typeof(cfgState.onLoad) == 'function') then
+                    cfgState.onLoad(sel, name)
+                end
+                win:fireEvent('onConfigLoad', sel, name)
+            end)
+
+            local delBtn = cfgSec:addButton({
+                text = 'delete config',
+                style = 'small',
+                tooltip = 'Deletes the currently selected configuration profile'
+            }, function()
+                local sel = cfgList:getValue()
+                if (typeof(cfgState.onDelete) == 'function') then
+                    cfgState.onDelete(sel)
+                end
+                win:fireEvent('onConfigDelete', sel)
+            end)
+
+            win.configControls = {
+                nameBox = cfgName,
+                list = cfgList,
+                buttons = saveLoadBtns,
+                deleteButton = delBtn
+            }
+
+            win.setConfigs = function(_, items, selected)
+                cfgState.items = (typeof(items) == 'table') and items or {}
+                cfgList:setItems(cfgState.items)
+                if (cfgList.instances and cfgList.instances.list) then
+                    cfgList.instances.list.CanvasPosition = Vector2.new(0, 0)
+                end
+                if (selected ~= nil) then
+                    cfgList:setValue(selected, true)
+                end
+                return win
             end
-            ui.notify({title = 'config', message = 'Saved ' .. name, duration = 2})
-        end, function()
-            ui.notify({title = 'config', message = 'Loaded ' .. tostring(cfgList:getValue()), duration = 2})
-        end)
+
+            win.getConfigs = function()
+                return cfgState.items
+            end
+
+            win.getSelectedConfig = function()
+                return cfgList:getValue()
+            end
+
+            win.getConfigName = function()
+                local tx = cfgName:getText()
+                if (tx ~= '') then
+                    return tx
+                end
+                local sel = cfgList:getValue()
+                return sel and tostring(sel) or ''
+            end
+
+            win.configureConfigs = function(_, opts)
+                if (typeof(opts) ~= 'table') then return win end
+                if (opts.onSave ~= nil) then cfgState.onSave = opts.onSave end
+                if (opts.onLoad ~= nil) then cfgState.onLoad = opts.onLoad end
+                if (opts.onDelete ~= nil) then cfgState.onDelete = opts.onDelete end
+                if (opts.onSelect ~= nil) then cfgState.onSelect = opts.onSelect end
+                if (opts.placeholder and cfgName.instances and cfgName.instances.textbox) then
+                    cfgName.instances.textbox.PlaceholderText = tostring(opts.placeholder)
+                end
+                if (opts.items ~= nil or opts.options ~= nil) then
+                    win:setConfigs(opts.items or opts.options, opts.default ~= nil and opts.default or opts.value)
+                elseif (opts.default ~= nil or opts.value ~= nil) then
+                    cfgList:setValue(opts.default ~= nil and opts.default or opts.value, true)
+                end
+                return win
+            end
+        end
 
         local notifyKey = cfgSec:addHotkey({
             text = 'test notify bind',
@@ -10432,17 +10526,15 @@ do
             })
         end))
 
-        cfgSec:addDualButton({
-            left = 'replay intro',
-            right = 'unload ui',
-            tooltip = 'Replay the L A R P launch intro or cleanly terminate the UI'
+        cfgSec:addButton({
+            text = 'unload ui',
+            style = 'large',
+            tooltip = 'Cleanly terminates all connections, toggles, keybinds, and removes the UI'
         }, function()
-            win:playIntro()
-        end, function()
             ui.terminate()
         end)
 
-        return settingsMenu
+        return prefMenu
     end
 
     ui.newWindow = function(settings)
@@ -10454,7 +10546,11 @@ do
         local s_resize = settings.resize or false
         local s_showSettings = settings.showSettings
         local s_showSearch = settings.showSearch
-        local s_defaultSettings = (settings.defaultSettings == nil) and true or (settings.defaultSettings and true or false)
+        local s_defaultPref = settings.defaultPreference
+        if (s_defaultPref == nil) then
+            s_defaultPref = settings.defaultSettings
+        end
+        s_defaultPref = (s_defaultPref == nil) and true or (s_defaultPref and true or false)
         local s_position = settings.position
         if (not s_position) then
             s_position = defaultWinPos
@@ -10479,8 +10575,8 @@ do
             sessionRecord.title = tostring(s_title)
         end
 
-        if (s_defaultSettings) then
-            attachDefaultSettingsTab(win)
+        if (s_defaultPref) then
+            attachDefaultPreferenceTab(win, settings.configs)
         end
 
         local s_intro = (settings.intro == nil) and enableIntro or (settings.intro and true or false)
