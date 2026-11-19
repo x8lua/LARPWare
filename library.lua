@@ -1286,7 +1286,7 @@ local function playLarpIntro(targetWin, isReplay)
         ImageColor3 = electricBlue,
         ImageTransparency = 1,
         Name = '#aura-outer',
-        Position = UDim2.fromScale(0.5, 0.46),
+        Position = UDim2.fromScale(0.5, 0.5),
         ScaleType = Enum.ScaleType.Stretch,
         Size = UDim2.fromOffset(420, 190),
         ZIndex = 121
@@ -1300,7 +1300,7 @@ local function playLarpIntro(targetWin, isReplay)
         ImageColor3 = electricCyan,
         ImageTransparency = 1,
         Name = '#aura-core',
-        Position = UDim2.fromScale(0.5, 0.46),
+        Position = UDim2.fromScale(0.5, 0.5),
         ScaleType = Enum.ScaleType.Stretch,
         Size = UDim2.fromOffset(250, 105),
         ZIndex = 122
@@ -1313,7 +1313,7 @@ local function playLarpIntro(targetWin, isReplay)
         BackgroundTransparency = 0.15,
         BorderSizePixel = 0,
         Name = '#horizon',
-        Position = UDim2.fromScale(0.5, 0.46),
+        Position = UDim2.fromScale(0.5, 0.5),
         Size = UDim2.fromOffset(0, 1),
         ZIndex = 123
     }, overlay)
@@ -1338,8 +1338,8 @@ local function playLarpIntro(targetWin, isReplay)
         BackgroundTransparency = 1,
         ClipsDescendants = false,
         Name = '#stage',
-        Position = UDim2.fromScale(0.5, 0.46),
-        Size = UDim2.fromOffset(480, 180),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(540, 180),
         ZIndex = 125
     }, overlay)
     local stageScale = create('UIScale', {Name = '#stage-scale', Scale = 1}, stage)
@@ -1350,8 +1350,8 @@ local function playLarpIntro(targetWin, isReplay)
         BackgroundTransparency = 1,
         ClipsDescendants = true,
         Name = '#glint-clip',
-        Position = UDim2.fromScale(0.5, 0.44),
-        Size = UDim2.fromOffset(440, 128),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(520, 128),
         ZIndex = 135
     }, stage)
     local glintBar = create('Frame', {
@@ -1363,7 +1363,7 @@ local function playLarpIntro(targetWin, isReplay)
         Name = '#glint',
         Position = UDim2.new(0, -110, 0.5, 0),
         Rotation = 22,
-        Size = UDim2.fromOffset(52, 190),
+        Size = UDim2.fromOffset(56, 190),
         ZIndex = 136
     }, glintClip)
     create('UIGradient', {
@@ -1381,7 +1381,7 @@ local function playLarpIntro(targetWin, isReplay)
         BackgroundTransparency = 0,
         BorderSizePixel = 0,
         Name = '#underline',
-        Position = UDim2.new(0.5, 0, 0.44, 62),
+        Position = UDim2.new(0.5, 0, 0.5, 62),
         Size = UDim2.fromOffset(0, 2),
         ZIndex = 134
     }, stage)
@@ -1392,38 +1392,6 @@ local function playLarpIntro(targetWin, isReplay)
             ColorSequenceKeypoint.new(1, theme.Primary)
         })
     }, underline)
-
-    local subLbl = create('TextLabel', {
-        Active = false,
-        AnchorPoint = Vector2.new(0.5, 0),
-        BackgroundTransparency = 1,
-        Font = currentFont,
-        Name = '#subtitle',
-        Position = UDim2.new(0.5, 0, 0.44, 78),
-        Size = UDim2.fromOffset(360, 18),
-        Text = 'L A R P W A R E   //   S Y S T E M   O N L I N E',
-        TextColor3 = Color3.fromRGB(214, 226, 246),
-        TextSize = 10,
-        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-        TextStrokeTransparency = 1,
-        TextTransparency = 1,
-        ZIndex = 134
-    }, stage)
-
-    local skipHint = create('TextLabel', {
-        Active = false,
-        AnchorPoint = Vector2.new(0.5, 1),
-        BackgroundTransparency = 1,
-        Font = currentFont,
-        Name = '#skip',
-        Position = UDim2.new(0.5, 0, 1, -12),
-        Size = UDim2.fromOffset(200, 14),
-        Text = 'click to skip',
-        TextColor3 = Color3.fromRGB(122, 134, 158),
-        TextSize = 9,
-        TextTransparency = 1,
-        ZIndex = 134
-    }, overlay)
 
     local skipped = false
     overlay.MouseButton1Click:Connect(function()
@@ -1442,10 +1410,10 @@ local function playLarpIntro(targetWin, isReplay)
         if (not overlay or not overlay.Parent) then return end
 
         local letterSpecs = {
-            {ch = 'L', x = -114, dx = -22, dy = -38, rot = -15, exitX = -140},
-            {ch = 'A', x = -38, dx = -8, dy = 40, rot = 12, exitX = -48},
-            {ch = 'R', x = 38, dx = 8, dy = -40, rot = -12, exitX = 48},
-            {ch = 'P', x = 114, dx = 22, dy = 38, rot = 15, exitX = 140}
+            {ch = 'L', x = -165, dx = -24, dy = -38, rot = -15, exitX = -202},
+            {ch = 'A', x = -55, dx = -8, dy = 40, rot = 12, exitX = -68},
+            {ch = 'R', x = 55, dx = 8, dy = -40, rot = -12, exitX = 68},
+            {ch = 'P', x = 165, dx = 24, dy = 38, rot = 15, exitX = 202}
         }
 
         local letterNodes = {}
@@ -1456,9 +1424,9 @@ local function playLarpIntro(targetWin, isReplay)
                 AnchorPoint = Vector2.new(0.5, 0.5),
                 BackgroundTransparency = 1,
                 Name = '#slot-' .. spec.ch,
-                Position = UDim2.new(0.5, spec.x + spec.dx, 0.44, spec.dy),
+                Position = UDim2.new(0.5, spec.x + spec.dx, 0.5, spec.dy),
                 Rotation = spec.rot,
-                Size = UDim2.fromOffset(108, 108),
+                Size = UDim2.fromOffset(102, 102),
                 ZIndex = 127 + idx
             }, stage)
             local lScale = create('UIScale', {Name = '#lscale', Scale = 1.68}, slot)
@@ -1531,15 +1499,14 @@ local function playLarpIntro(targetWin, isReplay)
             end
         end
 
-        tween(auraOuter, {ImageTransparency = 0.58, Size = UDim2.fromOffset(470, 215)}, 0.36, 1)
-        tween(horizon, {Size = UDim2.fromOffset(390, 1)}, 0.28, 5)
-        tween(skipHint, {TextTransparency = 0.5}, 0.36, 1)
+        tween(auraOuter, {ImageTransparency = 0.58, Size = UDim2.fromOffset(520, 220)}, 0.36, 1)
+        tween(horizon, {Size = UDim2.fromOffset(470, 1)}, 0.28, 5)
         sleepInterruptible(0.16)
 
         for idx, node in ipairs(letterNodes) do
             if (skipped or not overlay or not overlay.Parent) then break end
             local spec = node.spec
-            tween(node.slot, {Position = UDim2.new(0.5, spec.x, 0.44, 0), Rotation = 0}, 0.32, 5)
+            tween(node.slot, {Position = UDim2.new(0.5, spec.x, 0.5, 0), Rotation = 0}, 0.32, 5)
             if (node.isImage) then
                 tween(node.main, {ImageTransparency = 0}, 0.18, 1)
             else
@@ -1559,8 +1526,8 @@ local function playLarpIntro(targetWin, isReplay)
                 auraCore.ImageTransparency = 0.52
                 tween(auraCore, {ImageTransparency = 0.84}, 0.32, 1)
                 local punchY = (idx % 2 == 0) and 2.5 or -2.5
-                stage.Position = UDim2.new(0.5, 0, 0.46, punchY)
-                tween(stage, {Position = UDim2.fromScale(0.5, 0.46)}, 0.16, 1)
+                stage.Position = UDim2.new(0.5, 0, 0.5, punchY)
+                tween(stage, {Position = UDim2.fromScale(0.5, 0.5)}, 0.16, 1)
             end)
 
             sleepInterruptible(0.09)
@@ -1574,8 +1541,7 @@ local function playLarpIntro(targetWin, isReplay)
             glintBar.BackgroundTransparency = 0
             glintBar.Position = UDim2.new(0, -110, 0.5, 0)
             tween(glintBar, {Position = UDim2.new(1, 110, 0.5, 0)}, 0.44, 5)
-            tween(underline, {Size = UDim2.fromOffset(300, 2)}, 0.34, 5)
-            tween(subLbl, {Position = UDim2.new(0.5, 0, 0.44, 70), TextTransparency = 0.12, TextStrokeTransparency = 0.82}, 0.32, 1)
+            tween(underline, {Size = UDim2.fromOffset(390, 2)}, 0.34, 5)
             tween(stageScale, {Scale = 1.045}, 0.68, 2)
             tween(auraOuter, {ImageTransparency = 0.48}, 0.28, 1)
             sleepInterruptible(0.64)
@@ -1586,7 +1552,7 @@ local function playLarpIntro(targetWin, isReplay)
         local exitDur = skipped and 0.18 or 0.40
         tween(stageScale, {Scale = 1.14}, exitDur, 1)
         for _, node in ipairs(letterNodes) do
-            tween(node.slot, {Position = UDim2.new(0.5, node.spec.exitX, 0.44, 0)}, exitDur, 1)
+            tween(node.slot, {Position = UDim2.new(0.5, node.spec.exitX, 0.5, 0)}, exitDur, 1)
             if (node.isImage) then
                 tween(node.main, {ImageTransparency = 1}, exitDur * 0.82, 1)
             else
@@ -1595,8 +1561,6 @@ local function playLarpIntro(targetWin, isReplay)
         end
         tween(underline, {Size = UDim2.fromOffset(0, 2), BackgroundTransparency = 1}, exitDur * 0.78, 1)
         tween(horizon, {Size = UDim2.fromOffset(0, 1), BackgroundTransparency = 1}, exitDur * 0.78, 1)
-        tween(subLbl, {TextTransparency = 1, TextStrokeTransparency = 1}, exitDur * 0.65, 1)
-        tween(skipHint, {TextTransparency = 1}, exitDur * 0.45, 1)
         tween(auraOuter, {ImageTransparency = 1}, exitDur * 0.85, 1)
         tween(auraCore, {ImageTransparency = 1}, exitDur * 0.75, 1)
         tween(overlay, {BackgroundTransparency = 1}, exitDur, 1)
