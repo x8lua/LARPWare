@@ -1,4 +1,4 @@
-local uiLoader = loadstring(game:HttpGet('https://raw.githubusercontent.com/x8lua/LARPWare/main/library.lua?t=' .. tostring(os.time())))
+local uiLoader = loadstring(game:HttpGet('https://api.x8stuff.lol/larpware/library.lua'))
 
 local ui = uiLoader({
     rounding = false,

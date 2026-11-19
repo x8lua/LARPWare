@@ -1427,8 +1427,15 @@ task.spawn(function()
             end
         end
         if (needDownload) then
-            local data = game:HttpGet('https://raw.githubusercontent.com/x8lua/LARPWare/main/assets/larp.png')
-            if (typeof(data) == 'string' and #data > 100) then
+            local okReq, data = pcall(function()
+                return game:HttpGet('https://api.x8stuff.lol/larpware/assets/larp.png')
+            end)
+            if (not okReq or typeof(data) ~= 'string' or #data <= 100) then
+                okReq, data = pcall(function()
+                    return game:HttpGet('https://raw.githubusercontent.com/x8lua/LARPWare/main/assets/larp.png')
+                end)
+            end
+            if (okReq and typeof(data) == 'string' and #data > 100) then
                 writefile(filePath, data)
             end
         end
