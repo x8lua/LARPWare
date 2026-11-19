@@ -23,6 +23,35 @@ local currentTransparency = 0
 local enableIntro = true
 local enableMobileButton = true
 local theme
+
+local function isPrimaryInput(io)
+    return io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch
+end
+
+local function isMoveInput(io)
+    return io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch
+end
+
+local function getViewportInfo()
+    local cam = workspace.CurrentCamera
+    local vp = (cam and cam.ViewportSize) or guiService:GetScreenResolution()
+    local inset = guiService:GetGuiInset()
+    local topInset = (inset and inset.Y) or 0
+    return math.max(320, vp.X), math.max(200, vp.Y - topInset), topInset
+end
+
+local function isCompactViewport()
+    local vpX, availH = getViewportInfo()
+    return vpX <= 980 or availH <= 540 or (inputService.TouchEnabled and not inputService.MouseEnabled)
+end
+
+local function getHudScale()
+    local vpX, availH = getViewportInfo()
+    if (isCompactViewport()) then
+        return math.clamp(math.min(vpX / 960, availH / 460), 0.68, 0.86)
+    end
+    return 1
+end
 local rounding
 local cornerPx = 0
 
@@ -775,7 +804,7 @@ local function showDuplicateWarning(existing)
     modalGui.Name = randomGuiName()
     modalGui.IgnoreGuiInset = true
     modalGui.OnTopOfCoreBlur = true
-    modalGui.DisplayOrder = 950000000
+    modalGui.DisplayOrder = 100500
     modalGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
     modalGui.ResetOnSpawn = false
     modalGui.Parent = targetParent
@@ -1051,8 +1080,10 @@ local function showDuplicateWarning(existing)
     local proceedGrad = makeGradient(proceedBtn, theme.Primary, theme.Secondary, 90)
     makeTopSheen(proceedBtn, 5015)
 
+    local dupVpX, dupAvailH = getViewportInfo()
+    local dupTargetScale = math.clamp(math.min(1, (dupVpX - 24) / 378, (dupAvailH - 24) / 198), 0.55, 1)
     tween(backdrop, {BackgroundTransparency = 0.45}, 0.22, 1)
-    tween(cardScale, {Scale = 1}, 0.28, 1)
+    tween(cardScale, {Scale = dupTargetScale}, 0.28, 1)
 
     local decided = false
     local decision = false
@@ -1578,7 +1609,7 @@ end
 
 do
     uiScreen.OnTopOfCoreBlur = true
-    uiScreen.DisplayOrder = 9e9
+    uiScreen.DisplayOrder = 100000
     uiScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
     uiScreen.ResetOnSpawn = false
     uiScreen.Name = randomGuiName()
@@ -3990,6 +4021,40 @@ do
             return self
         end
 
+        window.fitToViewport = function(self, forceCenter)
+            local mf = self.instances and self.instances.mainFrame
+            if (not mf or not mf.Parent) then return self end
+            local vpX, availH = getViewportInfo()
+            local compact = isCompactViewport()
+            local logicalW = math.max(1, (self.size and self.size.X.Offset) or mf.Size.X.Offset or 550)
+            local logicalH = math.max(1, (self.size and self.size.Y.Offset) or mf.Size.Y.Offset or 376)
+
+            local maxW = compact and math.floor(vpX * 0.84) or math.max(360, vpX - 24)
+            local maxH = compact and math.floor(availH * 0.84) or math.max(260, availH - 24)
+            local fitScale = math.min(1, maxW / logicalW, maxH / logicalH)
+            fitScale = math.clamp(fitScale, 0.42, 1)
+
+            local scObj = mf:FindFirstChild('#scale')
+            if (scObj) then
+                scObj.Scale = fitScale
+            end
+            self.viewportScale = fitScale
+
+            local visW = logicalW * fitScale
+            local visH = logicalH * fitScale
+            local curPos = mf.Position
+            local curX = curPos.X.Scale * vpX + curPos.X.Offset
+            local curY = curPos.Y.Scale * availH + curPos.Y.Offset
+            local outOfBounds = (curX < 4) or (curY < 4) or (curX + visW > vpX - 4) or (curY + visH > availH - 4)
+
+            if (forceCenter or compact or outOfBounds) then
+                local cx = math.max(4, math.floor((vpX - visW) * 0.5))
+                local cy = math.max(4, math.floor((availH - visH) * 0.5))
+                mf.Position = UDim2.fromOffset(cx, cy)
+            end
+            return self
+        end
+
         window.setPosition = function(self, newPosition)
             if (typeof(newPosition) == 'Vector2') then
                 newPosition = UDim2.fromOffset(newPosition.X, newPosition.Y)
@@ -4008,6 +4073,7 @@ do
             end
             self.size = size
             self.instances.mainFrame.Size = size
+            self:fitToViewport(false)
             return self
         end
 
@@ -4200,19 +4266,19 @@ do
                 end
 
                 scaleTrack.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         draggingScale = true
                         tween(scaleTrack['#stroke'], {Color = theme.Primary}, 0.14, 1)
                         applyScaleFromX(io.Position.X)
                         if (sMoveCon) then sMoveCon:Disconnect() end
                         if (sEndCon) then sEndCon:Disconnect() end
                         sMoveCon = inputService.InputChanged:Connect(function(mio)
-                            if (draggingScale and mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (draggingScale and isMoveInput(mio)) then
                                 applyScaleFromX(mio.Position.X)
                             end
                         end)
                         sEndCon = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 draggingScale = false
                                 tween(scaleTrack['#stroke'], {Color = theme.Stroke}, 0.14, 1)
                                 if (sMoveCon) then sMoveCon:Disconnect(); sMoveCon = nil end
@@ -4253,19 +4319,19 @@ do
                 end
 
                 tScaleTrack.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         draggingTScale = true
                         tween(tScaleTrack['#stroke'], {Color = theme.Primary}, 0.14, 1)
                         applyTScaleFromX(io.Position.X)
                         if (tsMoveCon) then tsMoveCon:Disconnect() end
                         if (tsEndCon) then tsEndCon:Disconnect() end
                         tsMoveCon = inputService.InputChanged:Connect(function(mio)
-                            if (draggingTScale and mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (draggingTScale and isMoveInput(mio)) then
                                 applyTScaleFromX(mio.Position.X)
                             end
                         end)
                         tsEndCon = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 draggingTScale = false
                                 tween(tScaleTrack['#stroke'], {Color = theme.Stroke}, 0.14, 1)
                                 if (tsMoveCon) then tsMoveCon:Disconnect(); tsMoveCon = nil end
@@ -4567,7 +4633,7 @@ do
                 local targetPos
 
                 titleBar.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         local rootPos = mainFrame.AbsolutePosition
                         local startPos = Vector2.new(io.Position.X, io.Position.Y)
                         targetPos = UDim2.fromOffset(rootPos.X, rootPos.Y)
@@ -4581,15 +4647,19 @@ do
                         end)
 
                         dCon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 local curPos = Vector2.new(mio.Position.X, mio.Position.Y)
                                 local dest = rootPos + (curPos - startPos)
-                                targetPos = UDim2.fromOffset(dest.X, dest.Y)
+                                local vpX, availH = getViewportInfo()
+                                local sz = mainFrame.AbsoluteSize
+                                local cx = math.clamp(dest.X, math.min(4, -sz.X + 80), math.max(4, vpX - 80))
+                                local cy = math.clamp(dest.Y, 4, math.max(4, availH - 34))
+                                targetPos = UDim2.fromOffset(cx, cy)
                             end
                         end)
 
                         eCon = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 if (dCon) then dCon:Disconnect(); dCon = nil end
                                 if (aCon) then aCon:Disconnect(); aCon = nil end
                                 if (eCon) then eCon:Disconnect(); eCon = nil end
@@ -4618,8 +4688,10 @@ do
                 end)
 
                 resizeHandle.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1 and not new.minimized) then
-                        local rootSize = mainFrame.AbsoluteSize
+                    if (isPrimaryInput(io) and not new.minimized) then
+                        local sc = (mainFrame:FindFirstChild('#scale') and mainFrame['#scale'].Scale) or 1
+                        if (sc <= 0) then sc = 1 end
+                        local rootSize = Vector2.new(mainFrame.Size.X.Offset, mainFrame.Size.Y.Offset)
                         local startPos = Vector2.new(io.Position.X, io.Position.Y)
                         targetSize = UDim2.fromOffset(rootSize.X, rootSize.Y)
 
@@ -4633,15 +4705,15 @@ do
                         end)
 
                         dCon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 local curPos = Vector2.new(mio.Position.X, mio.Position.Y)
-                                local dest = rootSize + (curPos - startPos)
+                                local dest = rootSize + (curPos - startPos) / sc
                                 targetSize = UDim2.fromOffset(math.clamp(dest.X, 400, 900), math.clamp(dest.Y, 280, 720))
                             end
                         end)
 
                         eCon = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 if (dCon) then dCon:Disconnect(); dCon = nil end
                                 if (aCon) then aCon:Disconnect(); aCon = nil end
                                 if (eCon) then eCon:Disconnect(); eCon = nil end
@@ -5317,7 +5389,7 @@ do
 
             local insts = {}
             insts.main = self.instances.main:Clone()
-            insts.main['#scale'].Scale = 1
+            insts.main['#scale'].Scale = getHudScale()
 
             local titleBar = insts.main['#title-bar']
             insts.buttonClose = titleBar['#button-close']
@@ -5355,7 +5427,7 @@ do
                 local mainFrame = insts.main
                 local targetPos
                 titleBar.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         local rootPos = mainFrame.AbsolutePosition
                         local startPos = Vector2.new(io.Position.X, io.Position.Y)
                         targetPos = UDim2.fromOffset(rootPos.X, rootPos.Y)
@@ -5366,13 +5438,13 @@ do
                             mainFrame.Position = mainFrame.Position:lerp(targetPos, 1 - animSpeed ^ dt)
                         end)
                         dCon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 local dest = rootPos + (Vector2.new(mio.Position.X, mio.Position.Y) - startPos)
                                 targetPos = UDim2.fromOffset(dest.X, dest.Y)
                             end
                         end)
                         eCon = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 if (dCon) then dCon:Disconnect(); dCon = nil end
                                 if (aCon) then aCon:Disconnect(); aCon = nil end
                                 if (eCon) then eCon:Disconnect(); eCon = nil end
@@ -5418,7 +5490,7 @@ do
                 end
 
                 container.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         applyX(io.Position.X)
                         if (acon) then acon:Disconnect() end
                         if (dcon) then dcon:Disconnect() end
@@ -5427,12 +5499,12 @@ do
                             fill.Size = fill.Size:lerp(targetSize, 1 - 1e-12 ^ dt)
                         end)
                         dcon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 applyX(mio.Position.X)
                             end
                         end)
                         econ = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 if (dcon) then dcon:Disconnect(); dcon = nil end
                                 if (acon) then acon:Disconnect(); acon = nil end
                                 if (econ) then econ:Disconnect(); econ = nil end
@@ -5469,7 +5541,7 @@ do
                 end
 
                 container.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         applyVal(io.Position.X)
                         if (acon) then acon:Disconnect() end
                         if (dcon) then dcon:Disconnect() end
@@ -5478,12 +5550,12 @@ do
                             cursor.Position = cursor.Position:lerp(targetPos, 1 - 1e-12 ^ dt)
                         end)
                         dcon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 applyVal(mio.Position.X)
                             end
                         end)
                         econ = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 if (dcon) then dcon:Disconnect(); dcon = nil end
                                 if (acon) then acon:Disconnect(); acon = nil end
                                 if (econ) then econ:Disconnect(); econ = nil end
@@ -5513,7 +5585,7 @@ do
                 end
 
                 container.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         applySpd(io.Position.Y)
                         if (acon) then acon:Disconnect() end
                         if (dcon) then dcon:Disconnect() end
@@ -5522,12 +5594,12 @@ do
                             cursor.Position = cursor.Position:lerp(targetPos, 1 - 1e-12 ^ dt)
                         end)
                         dcon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 applySpd(mio.Position.Y)
                             end
                         end)
                         econ = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 if (dcon) then dcon:Disconnect(); dcon = nil end
                                 if (acon) then acon:Disconnect(); acon = nil end
                                 if (econ) then econ:Disconnect(); econ = nil end
@@ -5567,7 +5639,7 @@ do
                 end
 
                 picker.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         new.pickerMoving = true
                         applyWheel(io.Position)
                         if (acon) then acon:Disconnect() end
@@ -5577,12 +5649,12 @@ do
                             cursor.Position = cursor.Position:lerp(targetPos, 1 - 1e-12 ^ dt)
                         end)
                         dcon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 applyWheel(mio.Position)
                             end
                         end)
                         econ = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 new.pickerMoving = false
                                 if (dcon) then dcon:Disconnect(); dcon = nil end
                                 if (acon) then acon:Disconnect(); acon = nil end
@@ -7743,7 +7815,7 @@ do
                 end)
 
                 sliderInst.InputBegan:Connect(function(io)
-                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if (isPrimaryInput(io)) then
                         new.dragging = true
                         tween(sliderInst['#stroke'], {Color = theme.Primary}, 0.14, 1)
                         tween(fill, {BackgroundTransparency = 0.1}, 0.14, 1)
@@ -7759,12 +7831,12 @@ do
                             end
                         end)
                         dcon = inputService.InputChanged:Connect(function(mio)
-                            if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            if (isMoveInput(mio)) then
                                 applyAtX(mio.Position.X)
                             end
                         end)
                         econ = inputService.InputEnded:Connect(function(eio)
-                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (isPrimaryInput(eio)) then
                                 new.dragging = false
                                 if (dcon) then dcon:Disconnect(); dcon = nil end
                                 if (acon) then acon:Disconnect(); acon = nil end
@@ -9676,7 +9748,7 @@ do
             end
 
             insts.track.InputBegan:Connect(function(io)
-                if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                if (isPrimaryInput(io)) then
                     local clickVal = xToValue(io.Position.X)
                     activeHandle = (math.abs(clickVal - new.low) <= math.abs(clickVal - new.high)) and 'low' or 'high'
                     new.dragging = true
@@ -9687,12 +9759,12 @@ do
                     if (dcon) then dcon:Disconnect() end
                     if (econ) then econ:Disconnect() end
                     dcon = inputService.InputChanged:Connect(function(mio)
-                        if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                        if (isMoveInput(mio)) then
                             applyDrag(mio.Position.X)
                         end
                     end)
                     econ = inputService.InputEnded:Connect(function(eio)
-                        if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                        if (isPrimaryInput(eio)) then
                             new.dragging = false
                             if (dcon) then dcon:Disconnect(); dcon = nil end
                             if (econ) then econ:Disconnect(); econ = nil end
@@ -11018,6 +11090,7 @@ do
         win:setPosition(s_position)
         win:setTitle(s_title)
         win.size = s_winSize
+        win:fitToViewport(settings.position == nil)
         if (sessionRecord) then
             sessionRecord.title = tostring(s_title)
         end
@@ -11601,7 +11674,7 @@ do
             local dCon, aCon, eCon
             local targetPos
             handle.InputBegan:Connect(function(io)
-                if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                if (isPrimaryInput(io)) then
                     local rootPos = frame.AbsolutePosition
                     local startPos = Vector2.new(io.Position.X, io.Position.Y)
                     targetPos = UDim2.fromOffset(rootPos.X, rootPos.Y)
@@ -11612,13 +11685,13 @@ do
                         frame.Position = frame.Position:lerp(targetPos, 1 - animSpeed ^ dt)
                     end)
                     dCon = inputService.InputChanged:Connect(function(mio)
-                        if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                        if (isMoveInput(mio)) then
                             local dest = rootPos + (Vector2.new(mio.Position.X, mio.Position.Y) - startPos)
                             targetPos = UDim2.fromOffset(dest.X, dest.Y)
                         end
                     end)
                     eCon = inputService.InputEnded:Connect(function(eio)
-                        if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                        if (isPrimaryInput(eio)) then
                             if (dCon) then dCon:Disconnect(); dCon = nil end
                             if (aCon) then aCon:Disconnect(); aCon = nil end
                             if (eCon) then eCon:Disconnect(); eCon = nil end
@@ -11631,18 +11704,23 @@ do
             end)
         end
 
+        local initHudScale = getHudScale()
+        if (notifScale) then
+            notifScale.Scale = initHudScale
+        end
+
         local wmFrame = create('Frame', {
             Active = true,
             AutomaticSize = Enum.AutomaticSize.X,
             BackgroundColor3 = theme.Window1,
             BorderSizePixel = 0,
             Name = '#watermark',
-            Position = UDim2.fromOffset(16, 16),
+            Position = UDim2.fromOffset(isCompactViewport() and 10 or 16, isCompactViewport() and 8 or 16),
             Size = UDim2.fromOffset(0, 24),
             Visible = false,
             ZIndex = 2600
         }, uiScreen)
-        create('UIScale', {Name = '#scale', Scale = 1}, wmFrame)
+        create('UIScale', {Name = '#scale', Scale = initHudScale}, wmFrame)
         makeCorner(wmFrame, cornerPx)
         makeStroke(wmFrame, theme.Stroke, 1)
         local wmTrim = create('Frame', {
@@ -11697,12 +11775,12 @@ do
             BackgroundColor3 = theme.Window2,
             BorderSizePixel = 0,
             Name = '#keybind-list',
-            Position = UDim2.fromOffset(16, 52),
+            Position = UDim2.fromOffset(isCompactViewport() and 10 or 16, isCompactViewport() and 34 or 52),
             Size = UDim2.fromOffset(176, 22),
             Visible = false,
             ZIndex = 2500
         }, uiScreen)
-        create('UIScale', {Name = '#scale', Scale = 1}, kbFrame)
+        create('UIScale', {Name = '#scale', Scale = initHudScale}, kbFrame)
         makeCorner(kbFrame, cornerPx)
         makeStroke(kbFrame, theme.Stroke, 1)
         local kbTrim = create('Frame', {
@@ -11830,13 +11908,14 @@ do
             return kbFrame.Visible
         end
 
+        local mbDefaultSize = isCompactViewport() and 42 or 52
         local mbFrame = create('Frame', {
             Active = true,
             BackgroundColor3 = theme.Window1,
             BorderSizePixel = 0,
             Name = '#mobile-toggle',
-            Position = UDim2.new(0, 18, 0.5, -26),
-            Size = UDim2.fromOffset(52, 52),
+            Position = UDim2.new(0, isCompactViewport() and 10 or 18, 0.5, -math.floor(mbDefaultSize * 0.5)),
+            Size = UDim2.fromOffset(mbDefaultSize, mbDefaultSize),
             Visible = enableMobileButton,
             ZIndex = 2700
         }, uiScreen)
@@ -12108,6 +12187,42 @@ do
             ui.syncMobileButtonState()
             return mbFrame
         end
+        local function syncAllViewportFits()
+            if (ui._terminated) then return end
+            local hs = getHudScale()
+            if (notifScale and notifScale.Parent) then
+                notifScale.Scale = hs
+            end
+            if (wmFrame and wmFrame.Parent and wmFrame:FindFirstChild('#scale')) then
+                wmFrame['#scale'].Scale = hs
+            end
+            if (kbFrame and kbFrame.Parent and kbFrame:FindFirstChild('#scale')) then
+                kbFrame['#scale'].Scale = hs
+            end
+            for _, w in ipairs(windows) do
+                if (w and typeof(w.fitToViewport) == 'function') then
+                    w:fitToViewport(false)
+                end
+            end
+        end
+
+        local camVpCon
+        local function hookCameraViewport()
+            if (camVpCon) then
+                camVpCon:Disconnect()
+                camVpCon = nil
+            end
+            local cam = workspace.CurrentCamera
+            if (cam) then
+                camVpCon = cam:GetPropertyChangedSignal('ViewportSize'):Connect(syncAllViewportFits)
+                ui.trackConnection(camVpCon)
+            end
+        end
+        hookCameraViewport()
+        ui.trackConnection(workspace:GetPropertyChangedSignal('CurrentCamera'):Connect(function()
+            hookCameraViewport()
+            syncAllViewportFits()
+        end))
     end
 
     do
