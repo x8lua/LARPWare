@@ -18,12 +18,17 @@ do
     end
 end
 
+local currentTextScale = 1
+
 local function create(className, props, parent)
     local inst = Instance.new(className)
     if (props) then
         for k, v in pairs(props) do
             if (k == 'Font' and typeof(v) == 'Font') then
                 inst.FontFace = v
+            elseif (k == 'TextSize' and typeof(v) == 'number') then
+                inst:SetAttribute('BaseTextSize', v)
+                inst.TextSize = math.max(6, math.floor(v * currentTextScale + 0.5))
             else
                 inst[k] = v
             end
@@ -315,6 +320,9 @@ do
         end
         if (typeof(settings.scale) == 'number') then
             currentScale = math.clamp(settings.scale, 0.5, 2.5)
+        end
+        if (typeof(settings.textScale) == 'number') then
+            currentTextScale = math.clamp(settings.textScale, 0.6, 2.0)
         end
         if (typeof(theme) == 'string') then
             if (theme == 'cherry') then
@@ -741,6 +749,40 @@ local function makeSettingsGlyph(parent, zIndex)
     return holder
 end
 
+local function makeSearchGlyph(parent, zIndex)
+    local holder = create('Frame', {
+        Name = '#icon',
+        Active = false,
+        BackgroundTransparency = 1,
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = zIndex
+    }, parent)
+    local lens = create('Frame', {
+        Name = '#lens',
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, -1, 0.5, -1),
+        Size = UDim2.fromOffset(7, 7),
+        ZIndex = zIndex
+    }, holder)
+    makeCorner(lens, 99)
+    makeStroke(lens, theme.TextDim, 1)
+    create('Frame', {
+        Name = '#handle',
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = theme.TextDim,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0.5, 3, 0.5, 3),
+        Rotation = 45,
+        Size = UDim2.fromOffset(4, 1),
+        ZIndex = zIndex
+    }, holder)
+    return holder
+end
+
 local function makeChevronGlyph(parent, zIndex, size)
     local s = size or 5
     local holder = create('Frame', {
@@ -925,8 +967,56 @@ end
 
 local defaultWinPos = UDim2.fromScale(0.32, 0.28)
 local ui = {}
+local easterEggAsset = ''
+local easterEggLabels = {}
+
+task.spawn(function()
+    local ok, asset = pcall(function()
+        local getAsset = (typeof(getcustomasset) == 'function' and getcustomasset)
+            or (typeof(getsynasset) == 'function' and getsynasset)
+        if (not getAsset or typeof(writefile) ~= 'function') then
+            return nil
+        end
+        local folder = 'LARPWare'
+        local filePath = folder .. '/larp.png'
+        if (typeof(isfolder) == 'function' and typeof(makefolder) == 'function' and not isfolder(folder)) then
+            pcall(makefolder, folder)
+        end
+        local needDownload = true
+        if (typeof(isfile) == 'function' and isfile(filePath)) then
+            if (typeof(readfile) == 'function') then
+                local existing = readfile(filePath)
+                if (typeof(existing) == 'string' and #existing > 100) then
+                    needDownload = false
+                end
+            else
+                needDownload = false
+            end
+        end
+        if (needDownload) then
+            local data = game:HttpGet('https://raw.githubusercontent.com/x8lua/LARPWare/main/assets/larp.png')
+            if (typeof(data) == 'string' and #data > 100) then
+                writefile(filePath, data)
+            end
+        end
+        if (typeof(isfile) ~= 'function' or isfile(filePath)) then
+            return getAsset(filePath)
+        end
+        return nil
+    end)
+    if (ok and typeof(asset) == 'string' and asset ~= '') then
+        easterEggAsset = asset
+        for _, img in ipairs(easterEggLabels) do
+            if (img and img.Parent) then
+                img.Image = asset
+            end
+        end
+    end
+end)
+
 local fontListeners = {}
 local scaleListeners = {}
+local textScaleListeners = {}
 
 local function emitFontChanged()
     for i = 1, #fontListeners do
@@ -937,6 +1027,12 @@ end
 local function emitScaleChanged()
     for i = 1, #scaleListeners do
         task.spawn(scaleListeners[i], currentScale)
+    end
+end
+
+local function emitTextScaleChanged()
+    for i = 1, #textScaleListeners do
+        task.spawn(textScaleListeners[i], currentTextScale)
     end
 end
 
@@ -971,17 +1067,23 @@ do
                 tooltip.showing = true
                 tooltip.handle = self
                 local desc, title, main = tooltip.instances.desc, tooltip.instances.title, tooltip.instances.main
+                local barH = math.max(19, math.floor(19 * currentTextScale + 0.5))
+                local tipW = math.clamp(math.floor(176 * math.max(1, currentTextScale) + 0.5), 170, 260)
+                local stepH = math.max(14, math.floor(16 * currentTextScale + 0.5))
+                main['#title-bar'].Size = UDim2.new(1, 0, 0, barH)
+                main['#menu'].Position = UDim2.fromOffset(0, barH + 1)
+                main['#menu'].Size = UDim2.new(1, 0, 1, -(barH + 1))
 
                 title.Text = self.name
-                main.Size = UDim2.fromOffset(170, 26)
+                main.Size = UDim2.fromOffset(tipW, barH + 8)
                 desc.Text = self.tooltip
 
                 local c = 0
                 while (true) do
                     c += 1
-                    main.Size += UDim2.fromOffset(0, 16)
+                    main.Size += UDim2.fromOffset(0, stepH)
                     if (c > 24) then
-                        main.Size = UDim2.fromOffset(170, 68)
+                        main.Size = UDim2.fromOffset(tipW, barH + stepH * 4)
                         break
                     end
                     local _ = desc.TextFits
@@ -1030,6 +1132,8 @@ do
         window.minFocused = false
         window.settingsOpen = false
         window.settingsFocused = false
+        window.searchOpen = false
+        window.searchFocused = false
 
         local instances = {}
         do
@@ -1062,6 +1166,42 @@ do
                 ZIndex = 4
             }, mainFrame)
             makeCorner(bg, cornerPx)
+
+            local easterEgg = create('Frame', {
+                Active = false,
+                BackgroundColor3 = theme.Window1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#easter-egg',
+                Position = UDim2.new(0, 0, 1, -68),
+                Size = UDim2.new(1, 0, 0, 68),
+                Visible = false,
+                ZIndex = 2
+            }, mainFrame)
+            makeCorner(easterEgg, cornerPx)
+            makeStroke(easterEgg, theme.Stroke, 1)
+            local eeTrim = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#trim',
+                Position = UDim2.new(0, 0, 1, -2),
+                Size = UDim2.new(1, 0, 0, 2),
+                ZIndex = 3
+            }, easterEgg)
+            makeGradient(eeTrim, theme.Primary, theme.Secondary, 0)
+            create('ImageLabel', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Image = easterEggAsset,
+                ImageTransparency = 0,
+                Name = '#logo',
+                Position = UDim2.fromScale(0.5, 0.48),
+                ScaleType = Enum.ScaleType.Fit,
+                Size = UDim2.new(0.62, 0, 0, 44),
+                ZIndex = 3
+            }, easterEgg)
 
             makeStroke(mainFrame, theme.Stroke, 1)
 
@@ -1171,6 +1311,56 @@ do
             makeStroke(buttonSettings, theme.Stroke, 1)
             makeSettingsGlyph(buttonSettings, 53)
 
+            local buttonSearch = create('TextButton', {
+                AnchorPoint = Vector2.new(1, 0.5),
+                AutoButtonColor = false,
+                BackgroundColor3 = theme.Button1,
+                BorderSizePixel = 0,
+                Name = '#button-search',
+                Position = UDim2.new(1, -71, 0.5, 0),
+                Size = UDim2.fromOffset(18, 18),
+                Text = '',
+                ZIndex = 52
+            }, titleBar)
+            makeCorner(buttonSearch, cornerPx)
+            makeStroke(buttonSearch, theme.Stroke, 1)
+            makeSearchGlyph(buttonSearch, 53)
+
+            local searchBar = create('Frame', {
+                Active = true,
+                AnchorPoint = Vector2.new(1, 0.5),
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#search-bar',
+                Position = UDim2.new(1, -93, 0.5, 0),
+                Size = UDim2.fromOffset(0, 18),
+                Visible = false,
+                ZIndex = 54
+            }, titleBar)
+            makeCorner(searchBar, cornerPx)
+            makeStroke(searchBar, theme.Primary, 1)
+
+            local searchInput = create('TextBox', {
+                Active = true,
+                BackgroundTransparency = 1,
+                ClearTextOnFocus = false,
+                ClipsDescendants = true,
+                Font = currentFont,
+                Name = '#input',
+                PlaceholderColor3 = theme.TextDim,
+                PlaceholderText = 'search controls...',
+                Size = UDim2.fromScale(1, 1),
+                Text = '',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 55
+            }, searchBar)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, searchInput)
+
             local icon = create('ImageLabel', {
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundTransparency = 1,
@@ -1202,7 +1392,7 @@ do
                 Name = '#title',
                 Position = UDim2.fromOffset(16, 0),
                 RichText = true,
-                Size = UDim2.new(1, -92, 1, 0),
+                Size = UDim2.new(1, -112, 1, 0),
                 Text = 'LARPWare',
                 TextColor3 = theme.TextPrimary,
                 TextSize = 13,
@@ -1317,7 +1507,7 @@ do
                 BorderSizePixel = 1,
                 Name = '#settings-popover',
                 Position = UDim2.new(1, -6, 0, 34),
-                Size = UDim2.fromOffset(214, 214),
+                Size = UDim2.fromOffset(214, 250),
                 Visible = false,
                 ZIndex = 80
             }, mainFrame)
@@ -1576,6 +1766,133 @@ do
                 ZIndex = 84
             }, scaleFill)
 
+            local tScaleHeader = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#tscale-header',
+                Position = UDim2.fromOffset(0, 182),
+                Size = UDim2.new(1, 0, 0, 14),
+                ZIndex = 82
+            }, popBody)
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#tscale-label',
+                Size = UDim2.new(0.6, 0, 1, 0),
+                Text = 'text scale',
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 82
+            }, tScaleHeader)
+            create('TextButton', {
+                AutoButtonColor = false,
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#tscale-val',
+                Position = UDim2.fromScale(0.6, 0),
+                Size = UDim2.new(0.4, 0, 1, 0),
+                Text = '1.00x',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 83
+            }, tScaleHeader)
+
+            local tScaleTrack = create('Frame', {
+                Active = true,
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#tscale-track',
+                Position = UDim2.fromOffset(0, 198),
+                Size = UDim2.new(1, 0, 0, 12),
+                ZIndex = 82
+            }, popBody)
+            makeCorner(tScaleTrack, cornerPx)
+            makeStroke(tScaleTrack, theme.Stroke, 1)
+
+            local tScaleFill = create('Frame', {
+                Active = false,
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 0.2,
+                BorderSizePixel = 0,
+                Name = '#fill',
+                Size = UDim2.fromScale(0.333, 1),
+                ZIndex = 83
+            }, tScaleTrack)
+            makeCorner(tScaleFill, cornerPx)
+            makeGradient(tScaleFill, theme.Primary, theme.Secondary, 0)
+            create('Frame', {
+                AnchorPoint = Vector2.new(1, 0),
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 0.1,
+                BorderSizePixel = 0,
+                Name = '#cap',
+                Position = UDim2.fromScale(1, 0),
+                Size = UDim2.new(0, 1, 1, 0),
+                ZIndex = 84
+            }, tScaleFill)
+
+            local searchResults = create('Frame', {
+                Active = true,
+                AnchorPoint = Vector2.new(1, 0),
+                BackgroundColor3 = theme.Window1,
+                BorderColor3 = theme.Inset1,
+                BorderMode = Enum.BorderMode.Inset,
+                BorderSizePixel = 1,
+                ClipsDescendants = true,
+                Name = '#search-results',
+                Position = UDim2.new(1, -71, 0, 34),
+                Size = UDim2.fromOffset(236, 0),
+                Visible = false,
+                ZIndex = 86
+            }, mainFrame)
+            makeCorner(searchResults, cornerPx)
+            makeStroke(searchResults, theme.Stroke, 1)
+            local srTrim = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#trim',
+                Position = UDim2.fromOffset(0, -1),
+                Size = UDim2.new(1, 0, 0, 2),
+                ZIndex = 88
+            }, searchResults)
+            makeGradient(srTrim, theme.Primary, theme.Secondary, 0)
+
+            local srList = create('ScrollingFrame', {
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                BottomImage = 'rbxassetid://9416839567',
+                CanvasSize = UDim2.fromOffset(0, 0),
+                MidImage = 'rbxassetid://9416839567',
+                Name = '#list',
+                Position = UDim2.fromOffset(0, 2),
+                ScrollBarImageColor3 = theme.StrokeHover,
+                ScrollBarImageTransparency = 0.45,
+                ScrollBarThickness = 2,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
+                Size = UDim2.new(1, 0, 1, -2),
+                TopImage = 'rbxassetid://9416839567',
+                ZIndex = 87
+            }, searchResults)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Vertical,
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                Padding = UDim.new(0, 2),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            }, srList)
+            create('UIPadding', {
+                PaddingTop = UDim.new(0, 4),
+                PaddingBottom = UDim.new(0, 4),
+                PaddingLeft = UDim.new(0, 4),
+                PaddingRight = UDim.new(0, 5)
+            }, srList)
+
             instances.mainFrame = mainFrame
         end
         window.instances = instances
@@ -1627,8 +1944,76 @@ do
                 MouseButton1Click = function(_, self)
                     self:toggleSettings()
                 end
+            },
+            buttonSearch = {
+                MouseEnter = function(self, w)
+                    w.searchFocused = true
+                    tween(self, {BackgroundColor3 = w.searchOpen and theme.Button4 or theme.Button2}, 0.16, 1)
+                    tween(self['#stroke'], {Color = w.searchOpen and theme.Primary or theme.StrokeHover}, 0.16, 1)
+                    local icon = self['#icon']
+                    tween(icon['#lens']['#stroke'], {Color = w.searchOpen and theme.Primary or theme.TextPrimary}, 0.16, 1)
+                    tween(icon['#handle'], {BackgroundColor3 = w.searchOpen and theme.Primary or theme.TextPrimary}, 0.16, 1)
+                end,
+                MouseLeave = function(self, w)
+                    w.searchFocused = false
+                    tween(self, {BackgroundColor3 = w.searchOpen and theme.Button3 or theme.Button1}, 0.16, 1)
+                    tween(self['#stroke'], {Color = w.searchOpen and theme.Primary or theme.Stroke}, 0.16, 1)
+                    local icon = self['#icon']
+                    tween(icon['#lens']['#stroke'], {Color = w.searchOpen and theme.Primary or theme.TextDim}, 0.16, 1)
+                    tween(icon['#handle'], {BackgroundColor3 = w.searchOpen and theme.Primary or theme.TextDim}, 0.16, 1)
+                end,
+                MouseButton1Click = function(_, self)
+                    self:toggleSearch()
+                end
             }
         }
+
+        window.toggleSearch = function(self, forceState)
+            local nextState = (forceState ~= nil) and forceState or (not self.searchOpen)
+            if (self.minimized) then
+                nextState = false
+            end
+            self.searchOpen = nextState
+            local btn = self.instances.buttonSearch
+            local bar = self.instances.searchBar
+            local inp = self.instances.searchInput
+            local res = self.instances.searchResults
+            local icon = btn['#icon']
+
+            if (nextState) then
+                if (self.settingsOpen) then
+                    self:toggleSettings()
+                end
+                bar.Visible = true
+                tween(bar, {Size = UDim2.fromOffset(162, 18)}, 0.24, 1)
+                tween(btn, {BackgroundColor3 = self.searchFocused and theme.Button4 or theme.Button3}, 0.16, 1)
+                tween(btn['#stroke'], {Color = theme.Primary}, 0.16, 1)
+                tween(icon['#lens']['#stroke'], {Color = theme.Primary}, 0.16, 1)
+                tween(icon['#handle'], {BackgroundColor3 = theme.Primary}, 0.16, 1)
+                task.defer(function()
+                    if (self.searchOpen and inp and inp.Parent) then
+                        inp:CaptureFocus()
+                    end
+                end)
+            else
+                inp.Text = ''
+                tween(bar, {Size = UDim2.fromOffset(0, 18)}, 0.2, 1)
+                tween(res, {Size = UDim2.fromOffset(236, 0)}, 0.16, 1)
+                tween(btn, {BackgroundColor3 = self.searchFocused and theme.Button2 or theme.Button1}, 0.16, 1)
+                tween(btn['#stroke'], {Color = self.searchFocused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+                tween(icon['#lens']['#stroke'], {Color = self.searchFocused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+                tween(icon['#handle'], {BackgroundColor3 = self.searchFocused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+                task.delay(0.2, function()
+                    if (not self.searchOpen and bar and bar.Parent) then
+                        bar.Visible = false
+                    end
+                    if (not self.searchOpen and res and res.Parent) then
+                        res.Visible = false
+                    end
+                end)
+            end
+            return self
+        end
 
         window.toggleSettings = function(self)
             self.settingsOpen = not self.settingsOpen
@@ -1636,6 +2021,9 @@ do
             local btn = self.instances.buttonSettings
             if (self.minimized) then
                 self.settingsOpen = false
+            end
+            if (self.settingsOpen and self.searchOpen) then
+                self:toggleSearch(false)
             end
             pop.Visible = self.settingsOpen
             if (self.settingsOpen) then
@@ -1648,7 +2036,35 @@ do
             return self
         end
 
+        window.setEasterEgg = function(self, visible)
+            local ee = self.instances and self.instances.easterEgg
+            if (not ee or not ee.Parent) then return self end
+            local nextState = visible and (not self.minimized)
+            if (self.easterEggVisible == nextState) then
+                return self
+            end
+            self.easterEggVisible = nextState
+            self._eeAnimId = (self._eeAnimId or 0) + 1
+            local animId = self._eeAnimId
+            if (nextState) then
+                ee.Visible = true
+                tween(ee, {Position = UDim2.new(0, 0, 1, 2)}, 0.3, 1)
+            else
+                tween(ee, {Position = UDim2.new(0, 0, 1, -68)}, 0.14, 1)
+                task.delay(0.15, function()
+                    if (self._eeAnimId == animId and not self.easterEggVisible and ee and ee.Parent) then
+                        ee.Visible = false
+                    end
+                end)
+            end
+            return self
+        end
+
         window.destroy = function(self)
+            if (self._wheelCon) then
+                self._wheelCon:Disconnect()
+                self._wheelCon = nil
+            end
             if (ui.autoDisableToggles) then
                 for _, m in ipairs(self.menus) do
                     for _, sec in ipairs(m.sections) do
@@ -1798,13 +2214,16 @@ do
             return targetSize and self.size or self.instances.mainFrame.Size
         end
 
-        window.new = function(self, resize, showSettings)
+        window.new = function(self, resize, showSettings, showSearch)
             local new = setmetatable({}, self)
             new.menus = {}
             new.binds = {}
             new.resizable = resize and true or false
             new.settingsOpen = false
             new.settingsFocused = false
+            new.searchOpen = false
+            new.searchFocused = false
+            new.easterEggVisible = false
             table.insert(ui.windows, new)
 
             local insts = {}
@@ -1815,6 +2234,17 @@ do
             insts.buttonClose = titleBar['#button-close']
             insts.buttonMin = titleBar['#button-min']
             insts.buttonSettings = titleBar['#button-settings']
+            insts.buttonSearch = titleBar['#button-search']
+            insts.searchBar = titleBar['#search-bar']
+            insts.searchInput = insts.searchBar['#input']
+            insts.searchResults = insts.mainFrame['#search-results']
+            insts.easterEgg = insts.mainFrame['#easter-egg']
+            insts.easterEggLogo = insts.easterEgg['#logo']
+            if (easterEggAsset ~= '') then
+                insts.easterEggLogo.Image = easterEggAsset
+            end
+            table.insert(easterEggLabels, insts.easterEggLogo)
+
             insts.titleBar = titleBar
             insts.title = titleBar['#title']
             insts.gradient = insts.mainFrame['#trim']['#gradient']
@@ -1828,6 +2258,9 @@ do
 
             if (showSettings == false) then
                 insts.buttonSettings.Visible = false
+            end
+            if (showSearch == false) then
+                insts.buttonSearch.Visible = false
             end
 
             for key, signals in pairs(self.signals) do
@@ -1971,8 +2404,62 @@ do
                     end
                 end)
 
+                local tScaleHeader = popBody['#tscale-header']
+                local tScaleValBtn = tScaleHeader['#tscale-val']
+                local tScaleTrack = popBody['#tscale-track']
+                local tScaleFill = tScaleTrack['#fill']
+
+                local minTS, maxTS, stepTS = 0.6, 1.8, 0.05
+                local function syncPopoverTextScale(ts)
+                    local ratio = math.clamp((ts - minTS) / (maxTS - minTS), 0, 1)
+                    tScaleFill.Size = UDim2.fromScale(ratio, 1)
+                    tScaleValBtn.Text = ('%.2fx'):format(ts)
+                end
+
+                tScaleValBtn.MouseButton1Click:Connect(function()
+                    ui.setTextScale(1)
+                end)
+
+                local draggingTScale = false
+                local tsMoveCon
+                local tsEndCon
+
+                local function applyTScaleFromX(x)
+                    local pos = tScaleTrack.AbsolutePosition.X
+                    local width = math.max(1, tScaleTrack.AbsoluteSize.X)
+                    local r = math.clamp((x - pos) / width, 0, 1)
+                    local raw = minTS + r * (maxTS - minTS)
+                    local snapped = math.floor((raw + stepTS * 0.5) / stepTS) * stepTS
+                    snapped = math.clamp(math.floor(snapped * 100 + 0.5) / 100, minTS, maxTS)
+                    ui.setTextScale(snapped)
+                end
+
+                tScaleTrack.InputBegan:Connect(function(io)
+                    if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                        draggingTScale = true
+                        tween(tScaleTrack['#stroke'], {Color = theme.Primary}, 0.14, 1)
+                        applyTScaleFromX(io.Position.X)
+                        if (tsMoveCon) then tsMoveCon:Disconnect() end
+                        if (tsEndCon) then tsEndCon:Disconnect() end
+                        tsMoveCon = inputService.InputChanged:Connect(function(mio)
+                            if (draggingTScale and mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                                applyTScaleFromX(mio.Position.X)
+                            end
+                        end)
+                        tsEndCon = inputService.InputEnded:Connect(function(eio)
+                            if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                                draggingTScale = false
+                                tween(tScaleTrack['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+                                if (tsMoveCon) then tsMoveCon:Disconnect(); tsMoveCon = nil end
+                                if (tsEndCon) then tsEndCon:Disconnect(); tsEndCon = nil end
+                            end
+                        end)
+                    end
+                end)
+
                 syncPopoverFont(currentFontKey)
                 syncPopoverScale(currentScale)
+                syncPopoverTextScale(currentTextScale)
                 table.insert(fontListeners, function(fKey)
                     if (insts.mainFrame and insts.mainFrame.Parent) then
                         syncPopoverFont(fKey)
@@ -1981,6 +2468,204 @@ do
                 table.insert(scaleListeners, function(sc)
                     if (insts.mainFrame and insts.mainFrame.Parent) then
                         syncPopoverScale(sc)
+                    end
+                end)
+                table.insert(textScaleListeners, function(ts)
+                    if (insts.mainFrame and insts.mainFrame.Parent) then
+                        syncPopoverTextScale(ts)
+                    end
+                end)
+            end
+
+            do
+                local sInput = insts.searchInput
+                local sResults = insts.searchResults
+                local srList = sResults['#list']
+                local topAction = nil
+
+                local function jumpToMatch(m, sec, ctrl)
+                    m:select()
+                    if (sec.minimized) then
+                        sec:minimize()
+                    end
+                    task.delay(0.06, function()
+                        local mf = m.instances.menuFrame
+                        local cf = ctrl.instances and ctrl.instances.controlFrame
+                        if (mf and cf and cf.Parent) then
+                            local relY = (cf.AbsolutePosition.Y - mf.AbsolutePosition.Y) / currentScale + mf.CanvasPosition.Y
+                            tween(mf, {CanvasPosition = Vector2.new(0, math.max(0, relY - 24))}, 0.28, 1)
+                            local flash = create('Frame', {
+                                Active = false,
+                                BackgroundColor3 = theme.Primary,
+                                BackgroundTransparency = 0.72,
+                                BorderSizePixel = 0,
+                                Name = '#flash',
+                                Size = UDim2.fromScale(1, 1),
+                                ZIndex = 45
+                            }, cf)
+                            makeCorner(flash, cornerPx)
+                            tween(flash, {BackgroundTransparency = 1}, 0.65, 1).Completed:Connect(function()
+                                if (flash and flash.Parent) then
+                                    flash:Destroy()
+                                end
+                            end)
+                        end
+                    end)
+                    new:toggleSearch(false)
+                end
+
+                local function updateSearch()
+                    for _, ch in ipairs(srList:GetChildren()) do
+                        if (ch:IsA('TextButton') or ch:IsA('TextLabel')) then
+                            ch:Destroy()
+                        end
+                    end
+                    topAction = nil
+                    local q = sInput.Text:lower():gsub('^%s+', ''):gsub('%s+$', '')
+                    if (q == '' or not new.searchOpen) then
+                        tween(sResults, {Size = UDim2.fromOffset(236, 0)}, 0.14, 1)
+                        task.delay(0.14, function()
+                            if (sInput.Text == '' and sResults and sResults.Parent) then
+                                sResults.Visible = false
+                            end
+                        end)
+                        return
+                    end
+
+                    local matches = {}
+                    for _, m in ipairs(new.menus) do
+                        for _, sec in ipairs(m.sections) do
+                            for _, ctrl in ipairs(sec.controls) do
+                                local cName = tostring(ctrl.name or '')
+                                local sName = tostring(sec.instances.title.Text or '')
+                                local mName = tostring(m.name or '')
+                                if (cName ~= '' and (cName:lower():find(q, 1, true) or sName:lower():find(q, 1, true) or mName:lower():find(q, 1, true))) then
+                                    table.insert(matches, {menu = m, section = sec, control = ctrl, label = cName, path = mName .. ' / ' .. sName})
+                                    if (#matches >= 24) then
+                                        break
+                                    end
+                                end
+                            end
+                            if (#matches >= 24) then break end
+                        end
+                        if (#matches >= 24) then break end
+                    end
+
+                    sResults.Visible = true
+                    if (#matches == 0) then
+                        create('TextLabel', {
+                            BackgroundTransparency = 1,
+                            Font = currentFont,
+                            Size = UDim2.new(1, 0, 0, 22),
+                            Text = 'no matching elements',
+                            TextColor3 = theme.TextDim,
+                            TextSize = 11,
+                            ZIndex = 88
+                        }, srList)
+                        tween(sResults, {Size = UDim2.fromOffset(236, 32)}, 0.16, 1)
+                        return
+                    end
+
+                    for idx, item in ipairs(matches) do
+                        if (idx == 1) then
+                            topAction = function()
+                                jumpToMatch(item.menu, item.section, item.control)
+                            end
+                        end
+                        local row = create('TextButton', {
+                            AutoButtonColor = false,
+                            BackgroundColor3 = theme.Window3,
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            LayoutOrder = idx,
+                            Name = '#sr-' .. idx,
+                            Size = UDim2.new(1, 0, 0, 22),
+                            Text = '',
+                            ZIndex = 88
+                        }, srList)
+                        makeCorner(row, cornerPx)
+                        create('TextLabel', {
+                            BackgroundTransparency = 1,
+                            Font = currentFont,
+                            Position = UDim2.fromOffset(6, 0),
+                            Size = UDim2.new(0.55, -6, 1, 0),
+                            Text = item.label,
+                            TextColor3 = theme.TextPrimary,
+                            TextSize = 11,
+                            TextTruncate = Enum.TextTruncate.AtEnd,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            ZIndex = 89
+                        }, row)
+                        create('TextLabel', {
+                            BackgroundTransparency = 1,
+                            Font = currentFont,
+                            Position = UDim2.fromScale(0.55, 0),
+                            Size = UDim2.new(0.45, -6, 1, 0),
+                            Text = item.path,
+                            TextColor3 = theme.TextDim,
+                            TextSize = 10,
+                            TextTruncate = Enum.TextTruncate.AtEnd,
+                            TextXAlignment = Enum.TextXAlignment.Right,
+                            ZIndex = 89
+                        }, row)
+                        row.MouseEnter:Connect(function()
+                            tween(row, {BackgroundColor3 = theme.Button3, BackgroundTransparency = 0}, 0.12, 1)
+                        end)
+                        row.MouseLeave:Connect(function()
+                            tween(row, {BackgroundTransparency = 1}, 0.12, 1)
+                        end)
+                        row.MouseButton1Click:Connect(function()
+                            jumpToMatch(item.menu, item.section, item.control)
+                        end)
+                    end
+
+                    local targetH = math.min(#matches * 24 + 10, 178)
+                    tween(sResults, {Size = UDim2.fromOffset(236, targetH)}, 0.18, 1)
+                end
+
+                sInput:GetPropertyChangedSignal('Text'):Connect(updateSearch)
+                sInput.FocusLost:Connect(function(enterPressed)
+                    if (enterPressed and topAction) then
+                        topAction()
+                    end
+                end)
+            end
+
+            do
+                local mf = insts.mainFrame
+                new._wheelCon = inputService.InputChanged:Connect(function(io)
+                    if (io.UserInputType ~= Enum.UserInputType.MouseWheel) then return end
+                    if (new.minimized or not mf or not mf.Parent) then return end
+                    local mPos = inputService:GetMouseLocation()
+                    local inset = guiService:GetGuiInset()
+                    local mx, my = mPos.X, mPos.Y - inset.Y
+                    local p = mf.AbsolutePosition
+                    local sz = mf.AbsoluteSize
+                    local inside = (mx >= p.X and mx <= p.X + sz.X and my >= p.Y and my <= p.Y + sz.Y + 72)
+                    if (not inside) then return end
+
+                    if (io.Position.Z > 0) then
+                        new:setEasterEgg(false)
+                    elseif (io.Position.Z < 0) then
+                        local activeMenu
+                        for _, m in ipairs(new.menus) do
+                            if (m.selected) then
+                                activeMenu = m
+                                break
+                            end
+                        end
+                        local checkFrame = activeMenu and activeMenu.instances.menuFrame
+                        local sb = insts.sideBar
+                        if (sb and mx >= sb.AbsolutePosition.X and mx <= sb.AbsolutePosition.X + sb.AbsoluteSize.X) then
+                            checkFrame = insts.tabMenu
+                        end
+                        if (checkFrame) then
+                            local sc = (currentScale and currentScale > 0) and currentScale or 1
+                            local maxY = math.max(0, (checkFrame.AbsoluteCanvasSize.Y - checkFrame.AbsoluteWindowSize.Y) / sc)
+                            if (maxY <= 2 or checkFrame.CanvasPosition.Y >= maxY - 8) then
+                                new:setEasterEgg(true)
+                            end
+                        end
                     end
                 end)
             end
@@ -2098,6 +2783,11 @@ do
                 if (self.settingsOpen) then
                     self:toggleSettings()
                 end
+                if (self.searchOpen) then
+                    self:toggleSearch(false)
+                end
+                self:setEasterEgg(false)
+                mf['#easter-egg'].Visible = false
                 tween(mf, {Size = UDim2.fromOffset(self.size.X.Offset, 29)}, 0.28, 1)
                 tween(bminIcon['#v'], {BackgroundTransparency = 0, BackgroundColor3 = theme.Primary}, 0.2, 1)
                 tween(bminIcon['#h'], {BackgroundColor3 = theme.Primary}, 0.2, 1)
@@ -3142,6 +3832,9 @@ do
         menu.instances = instances
 
         menu.select = function(self)
+            if (self.window and self.window.setEasterEgg) then
+                self.window:setEasterEgg(false)
+            end
             for _, m in ipairs(self.window.menus) do
                 tween(m.instances.menuFrame, {Position = UDim2.fromScale(0, m.id - self.id)}, 0.35, 1)
                 if (m ~= self) then
@@ -3247,6 +3940,16 @@ do
             menuTab.Parent = self.instances.tabMenu
             menuFrame.Parent = self.instances.pageRegion
 
+            menuFrame:GetPropertyChangedSignal('CanvasPosition'):Connect(function()
+                if (self.easterEggVisible) then
+                    local sc = (currentScale and currentScale > 0) and currentScale or 1
+                    local maxY = math.max(0, (menuFrame.AbsoluteCanvasSize.Y - menuFrame.AbsoluteWindowSize.Y) / sc)
+                    if (menuFrame.CanvasPosition.Y < maxY - 8) then
+                        self:setEasterEgg(false)
+                    end
+                end
+            end)
+
             if (m.id == 1) then
                 m:select()
             end
@@ -3270,6 +3973,7 @@ do
                 AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundColor3 = theme.Window2,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Name = '#section',
                 Size = UDim2.new(1, -2, 0, 22),
                 ZIndex = 32
@@ -3354,6 +4058,7 @@ do
             create('UIListLayout', {
                 FillDirection = Enum.FillDirection.Vertical,
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                Name = '#layout',
                 Padding = UDim.new(0, 4),
                 SortOrder = Enum.SortOrder.LayoutOrder,
                 VerticalAlignment = Enum.VerticalAlignment.Top
@@ -3369,20 +4074,63 @@ do
 
         section.minimize = function(self)
             local newState = not self.minimized
-            local mf = self.instances.sectionFrame
-            local min = mf['#title-bar']['#min']
-            if (newState) then
-                tween(min['#icon'], {Rotation = 0}, 0.22, 1)
-                mf['#menu'].Visible = false
-                mf.AutomaticSize = Enum.AutomaticSize.None
-                mf.Size = UDim2.new(1, -2, 0, 22)
-            else
-                tween(min['#icon'], {Rotation = 180}, 0.22, 1)
-                tween(min, {BackgroundColor3 = self.minFocused and theme.Button2 or theme.Button1}, 0.16, 1)
-                mf['#menu'].Visible = true
-                mf.AutomaticSize = Enum.AutomaticSize.Y
-            end
             self.minimized = newState
+            self._animId = (self._animId or 0) + 1
+            local animId = self._animId
+
+            local mf = self.instances.sectionFrame
+            local tb = mf['#title-bar']
+            local min = tb['#min']
+            local menu = mf['#menu']
+            local trim = tb['#trim']
+            local sep = tb['#sep']
+            local titleLbl = tb['#title']
+            local sc = (currentScale and currentScale > 0) and currentScale or 1
+
+            if (newState) then
+                local curH = math.max(22, math.floor(mf.AbsoluteSize.Y / sc + 0.5))
+                mf.AutomaticSize = Enum.AutomaticSize.None
+                mf.Size = UDim2.new(1, -2, 0, curH)
+
+                tween(mf, {Size = UDim2.new(1, -2, 0, 22)}, 0.30, 1)
+                tween(menu, {Position = UDim2.fromOffset(0, 12)}, 0.24, 1)
+                tween(min['#icon'], {Rotation = 0}, 0.26, 1)
+                tween(min, {BackgroundColor3 = self.minFocused and theme.Button4 or theme.Button3}, 0.18, 1)
+                tween(trim, {BackgroundTransparency = 0.55}, 0.22, 1)
+                tween(sep, {BackgroundTransparency = 1}, 0.18, 1)
+                tween(titleLbl, {TextColor3 = theme.TextDim}, 0.20, 1)
+
+                task.delay(0.29, function()
+                    if (self._animId == animId and self.minimized and menu and menu.Parent) then
+                        menu.Visible = false
+                    end
+                end)
+            else
+                local curH = math.max(22, math.floor(mf.AbsoluteSize.Y / sc + 0.5))
+                menu.Visible = true
+                menu.Position = UDim2.fromOffset(0, 14)
+
+                local layout = menu:FindFirstChild('#layout')
+                local contentH = layout and math.floor(layout.AbsoluteContentSize.Y / sc + 0.5) or 0
+                local targetH = math.max(34, 22 + contentH + 12)
+
+                mf.AutomaticSize = Enum.AutomaticSize.None
+                mf.Size = UDim2.new(1, -2, 0, curH)
+
+                tween(mf, {Size = UDim2.new(1, -2, 0, targetH)}, 0.32, 1)
+                tween(menu, {Position = UDim2.fromOffset(0, 22)}, 0.28, 1)
+                tween(min['#icon'], {Rotation = 180}, 0.26, 1)
+                tween(min, {BackgroundColor3 = self.minFocused and theme.Button2 or theme.Button1}, 0.18, 1)
+                tween(trim, {BackgroundTransparency = 0}, 0.22, 1)
+                tween(sep, {BackgroundTransparency = 0}, 0.22, 1)
+                tween(titleLbl, {TextColor3 = theme.TextPrimary}, 0.20, 1)
+
+                task.delay(0.33, function()
+                    if (self._animId == animId and not self.minimized and mf and mf.Parent) then
+                        mf.AutomaticSize = Enum.AutomaticSize.Y
+                    end
+                end)
+            end
             return self
         end
 
@@ -3410,12 +4158,22 @@ do
             local new = setmetatable({}, self)
             new.controls = {}
             new.binds = {}
+            new.minimized = false
+            new._animId = 0
 
             local insts = {}
             insts.sectionFrame = self.instances.sectionFrame:Clone()
-            insts.title = insts.sectionFrame['#title-bar']['#title']
-            insts.minimizeButton = insts.sectionFrame['#title-bar']['#min']
+            insts.titleBar = insts.sectionFrame['#title-bar']
+            insts.title = insts.titleBar['#title']
+            insts.minimizeButton = insts.titleBar['#min']
             insts.controlMenu = insts.sectionFrame['#menu']
+
+            insts.titleBar.MouseEnter:Connect(function()
+                new:showTooltip()
+            end)
+            insts.titleBar.MouseLeave:Connect(function()
+                new:hideTooltip()
+            end)
 
             for key, signals in pairs(self.signals) do
                 local inst = insts[key]
@@ -3441,6 +4199,7 @@ do
 
             local sec = section:new()
             sec.menu = self
+            sec.name = s_text
             table.insert(self.sections, sec)
             sec.id = #self.sections
             sec.instances.title.Text = s_text
@@ -3454,6 +4213,9 @@ do
 
             if (not s_min) then
                 sec.instances.minimizeButton.Visible = false
+            end
+            if (settings.tooltip) then
+                sec:setTooltip(settings.tooltip)
             end
             return sec
         end
@@ -3707,10 +4469,12 @@ do
             swatchBtn.MouseEnter:Connect(function()
                 p.focused = true
                 tween(swatchBtn['#stroke'], {Color = theme.StrokeHover}, 0.14, 1)
+                p:showTooltip()
             end)
             swatchBtn.MouseLeave:Connect(function()
                 p.focused = false
                 tween(swatchBtn['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+                p:hideTooltip()
             end)
             swatchBtn.MouseButton1Click:Connect(function()
                 p:click()
@@ -3718,6 +4482,9 @@ do
 
             if (typeof(callback) == 'function') then
                 p:bindToEvent('onNewColor', callback)
+            end
+            if (settings.tooltip) then
+                p:setTooltip(settings.tooltip)
             end
             return p
         end
@@ -3779,6 +4546,7 @@ do
                     tween(hkLbl, {TextColor3 = theme.TextPrimary}, 0.14, 1)
                     tween(badgeBtn['#stroke'], {Color = theme.StrokeHover}, 0.14, 1)
                 end
+                hk:showTooltip()
             end)
             badgeBtn.MouseLeave:Connect(function()
                 hk.focused = false
@@ -3786,11 +4554,15 @@ do
                     tween(hkLbl, {TextColor3 = theme.TextDim}, 0.14, 1)
                     tween(badgeBtn['#stroke'], {Color = theme.Stroke}, 0.14, 1)
                 end
+                hk:hideTooltip()
             end)
             badgeBtn.MouseButton1Click:Connect(function()
                 hk:click()
             end)
 
+            if (settings.tooltip) then
+                hk:setTooltip(settings.tooltip)
+            end
             return hk
         end
 
@@ -3814,6 +4586,9 @@ do
 
             if (typeof(callback) == 'function') then
                 t:bindToEvent('onToggle', callback)
+            end
+            if (settings.tooltip) then
+                t:setTooltip(settings.tooltip)
             end
             return t
         end
@@ -4099,6 +4874,9 @@ do
             if (typeof(callback) == 'function') then
                 new:bindToEvent('onClick', callback)
             end
+            if (settings.tooltip) then
+                new:setTooltip(settings.tooltip)
+            end
             return new
         end
     end
@@ -4144,6 +4922,12 @@ do
             local insts = {}
             insts.controlFrame = self.instances.controlFrame:Clone()
             insts.label = insts.controlFrame['#label']
+            insts.controlFrame.MouseEnter:Connect(function()
+                new:showTooltip()
+            end)
+            insts.controlFrame.MouseLeave:Connect(function()
+                new:hideTooltip()
+            end)
             new.instances = insts
             return new
         end
@@ -4180,6 +4964,9 @@ do
                 li['#padding'].PaddingRight = UDim.new(0, 0)
             end
             l.instances.controlFrame.Parent = self.instances.controlMenu
+            if (settings.tooltip) then
+                l:setTooltip(settings.tooltip)
+            end
             return l
         end
 
@@ -4505,6 +5292,9 @@ do
             if (typeof(callback) == 'function') then
                 new:bindToEvent('onSelect', callback)
             end
+            if (settings.tooltip) then
+                new:setTooltip(settings.tooltip)
+            end
             return new
         end
 
@@ -4763,6 +5553,9 @@ do
 
             if (typeof(callback) == 'function') then
                 new:bindToEvent('onFontChange', callback)
+            end
+            if (settings.tooltip) then
+                new:setTooltip(settings.tooltip)
             end
             return new
         end
@@ -5084,6 +5877,9 @@ do
             if (typeof(callback) == 'function') then
                 s:bindToEvent('onNewValue', callback)
             end
+            if (settings.tooltip) then
+                s:setTooltip(settings.tooltip)
+            end
             return s
         end
 
@@ -5095,7 +5891,8 @@ do
                 max = settings.max or 2.0,
                 step = settings.step or 0.05,
                 value = settings.value or settings.val or currentScale,
-                suffix = settings.suffix or 'x'
+                suffix = settings.suffix or 'x',
+                tooltip = settings.tooltip
             }
             local s = self:addSlider(s_cfg, function(newVal)
                 ui.setScale(newVal)
@@ -5111,6 +5908,32 @@ do
             return s
         end
         elemClasses.section.addScaleSlider = elemClasses.section.addUIScaler
+
+        elemClasses.section.addTextScaler = function(self, settings, callback)
+            settings = settings or {}
+            local s_cfg = {
+                text = settings.text or 'text scale',
+                min = settings.min or 0.6,
+                max = settings.max or 1.8,
+                step = settings.step or 0.05,
+                value = settings.value or settings.val or currentTextScale,
+                suffix = settings.suffix or 'x',
+                tooltip = settings.tooltip
+            }
+            local s = self:addSlider(s_cfg, function(newVal)
+                ui.setTextScale(newVal)
+                if (typeof(callback) == 'function') then
+                    callback(newVal)
+                end
+            end)
+            table.insert(textScaleListeners, function(ts)
+                if (s.instances.controlFrame and s.instances.controlFrame.Parent and not s.dragging) then
+                    s:setValue(ts, true)
+                end
+            end)
+            return s
+        end
+        elemClasses.section.addTextScaleSlider = elemClasses.section.addTextScaler
 
         elemClasses.slider = slider
     end
@@ -5376,6 +6199,9 @@ do
             if (typeof(callback) == 'function') then
                 p:bindToEvent('onNewColor', callback)
             end
+            if (settings.tooltip) then
+                p:setTooltip(settings.tooltip)
+            end
             return p
         end
 
@@ -5545,6 +6371,9 @@ do
 
             if (typeof(callback) == 'function') then
                 new:bindToEvent('onTextChange', callback)
+            end
+            if (settings.tooltip) then
+                new:setTooltip(settings.tooltip)
             end
             return new
         end
@@ -5998,6 +6827,9 @@ do
                 hk:setHotkey(s_bind)
             end
             hk.instances.controlFrame.Parent = self.instances.controlMenu
+            if (settings.tooltip) then
+                hk:setTooltip(settings.tooltip)
+            end
             return hk
         end
 
@@ -6388,6 +7220,9 @@ do
             if (typeof(callback) == 'function') then
                 new:bindToEvent('onSelect', callback)
             end
+            if (settings.tooltip) then
+                new:setTooltip(settings.tooltip)
+            end
             return new
         end
 
@@ -6462,6 +7297,12 @@ do
             insts.controlFrame = self.instances.controlFrame:Clone()
             insts.line = insts.controlFrame['#line']
             insts.label = insts.controlFrame['#label']
+            insts.controlFrame.MouseEnter:Connect(function()
+                new:showTooltip()
+            end)
+            insts.controlFrame.MouseLeave:Connect(function()
+                new:hideTooltip()
+            end)
             new.instances = insts
             return new
         end
@@ -6475,6 +7316,9 @@ do
             table.insert(self.controls, d)
             d:setText(s_text)
             d.instances.controlFrame.Parent = self.instances.controlMenu
+            if (typeof(settings) == 'table' and settings.tooltip) then
+                d:setTooltip(settings.tooltip)
+            end
             return d
         end
 
@@ -6640,6 +7484,9 @@ do
 
             if (typeof(callback) == 'function') then
                 new:bindToEvent('onSelect', callback)
+            end
+            if (settings.tooltip) then
+                new:setTooltip(settings.tooltip)
             end
             return new
         end
@@ -6909,6 +7756,9 @@ do
             if (typeof(callback) == 'function') then
                 rs:bindToEvent('onNewRange', callback)
             end
+            if (settings.tooltip) then
+                rs:setTooltip(settings.tooltip)
+            end
             return rs
         end
 
@@ -7022,6 +7872,9 @@ do
             end
             if (typeof(rightCb) == 'function') then
                 db:bindToEvent('onRightClick', rightCb)
+            end
+            if (settings.tooltip) then
+                db:setTooltip(settings.tooltip)
             end
             return db
         end
@@ -7140,6 +7993,12 @@ do
             insts.label = insts.track['#label']
             insts.value = insts.track['#val']
             insts.fill = insts.track['#fill']
+            insts.track.MouseEnter:Connect(function()
+                new:showTooltip()
+            end)
+            insts.track.MouseLeave:Connect(function()
+                new:hideTooltip()
+            end)
             new.instances = insts
             return new
         end
@@ -7158,6 +8017,9 @@ do
             pb.instances.label.Text = pb.name
             pb:setValue(settings.value or settings.val or 0, pb.max, settings.display)
             pb.instances.controlFrame.Parent = self.instances.controlMenu
+            if (settings.tooltip) then
+                pb:setTooltip(settings.tooltip)
+            end
             return pb
         end
 
@@ -7382,6 +8244,12 @@ do
                     btn.Visible = (q == '' or tostring(item):lower():find(q, 1, true) ~= nil)
                 end
             end)
+            insts.controlFrame.MouseEnter:Connect(function()
+                new:showTooltip()
+            end)
+            insts.controlFrame.MouseLeave:Connect(function()
+                new:hideTooltip()
+            end)
 
             new.instances = insts
             return new
@@ -7414,6 +8282,9 @@ do
 
             if (typeof(callback) == 'function') then
                 lb:bindToEvent('onSelect', callback)
+            end
+            if (settings.tooltip) then
+                lb:setTooltip(settings.tooltip)
             end
             return lb
         end
@@ -7544,6 +8415,12 @@ do
             insts.card = insts.controlFrame['#card']
             insts.title = insts.card['#inner']['#title']
             insts.body = insts.card['#inner']['#body']
+            insts.card.MouseEnter:Connect(function()
+                new:showTooltip()
+            end)
+            insts.card.MouseLeave:Connect(function()
+                new:hideTooltip()
+            end)
             new.instances = insts
             return new
         end
@@ -7559,6 +8436,9 @@ do
             p:setTitle(settings.title or settings.text or '')
             p:setBody(settings.content or settings.body or settings.desc or '')
             p.instances.controlFrame.Parent = self.instances.controlMenu
+            if (settings.tooltip) then
+                p:setTooltip(settings.tooltip)
+            end
             return p
         end
 
@@ -7579,6 +8459,24 @@ local function applyFontToTree(root, fontFace)
             else
                 inst.Font = fontFace
             end
+        end
+    end
+    maybeApply(root)
+    for _, desc in ipairs(root:GetDescendants()) do
+        maybeApply(desc)
+    end
+end
+
+local function applyTextScaleToTree(root, scale)
+    if (not root) then return end
+    local function maybeApply(inst)
+        if (inst:IsA('TextLabel') or inst:IsA('TextButton') or inst:IsA('TextBox')) then
+            local base = inst:GetAttribute('BaseTextSize')
+            if (typeof(base) ~= 'number') then
+                base = inst.TextSize
+                inst:SetAttribute('BaseTextSize', base)
+            end
+            inst.TextSize = math.max(6, math.floor(base * scale + 0.5))
         end
     end
     maybeApply(root)
@@ -7692,6 +8590,35 @@ do
         return currentScale
     end
 
+    ui.getTextScale = function()
+        return currentTextScale
+    end
+
+    ui.setTextScale = function(scale)
+        if (typeof(scale) ~= 'number') then
+            return error('expected type number for text scale', 2)
+        end
+        currentTextScale = math.clamp(scale, 0.6, 2.0)
+
+        if (uiScreen) then
+            applyTextScaleToTree(uiScreen, currentTextScale)
+        end
+        if (elemClasses) then
+            for _, cls in pairs(elemClasses) do
+                if (typeof(cls) == 'table' and cls.instances) then
+                    for _, inst in pairs(cls.instances) do
+                        if (typeof(inst) == 'Instance') then
+                            applyTextScaleToTree(inst, currentTextScale)
+                        end
+                    end
+                end
+            end
+        end
+
+        emitTextScaleChanged()
+        return currentTextScale
+    end
+
     ui.newWindow = function(settings)
         if (typeof(settings) ~= 'table') then
             return error('expected type table for settings', 2)
@@ -7700,13 +8627,14 @@ do
         local s_title = settings.text or 'LARPWare'
         local s_resize = settings.resize or false
         local s_showSettings = settings.showSettings
+        local s_showSearch = settings.showSearch
         local s_position = settings.position
         if (not s_position) then
             s_position = defaultWinPos
             defaultWinPos += UDim2.fromScale(0.02, 0.02)
         end
 
-        local win = elemClasses.window:new(s_resize, s_showSettings)
+        local win = elemClasses.window:new(s_resize, s_showSettings, s_showSearch)
 
         local s_winSize = settings.size or win.size
         if (typeof(s_winSize) == 'Vector2') then
