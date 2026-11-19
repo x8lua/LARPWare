@@ -22,7 +22,11 @@ local function create(className, props, parent)
     local inst = Instance.new(className)
     if (props) then
         for k, v in pairs(props) do
-            inst[k] = v
+            if (k == 'Font' and typeof(v) == 'Font') then
+                inst.FontFace = v
+            else
+                inst[k] = v
+            end
         end
     end
     if (parent) then
@@ -79,37 +83,219 @@ local theme
 local rounding
 local animSpeed = 1e-12
 
-local fontMap = {
-    roboto = Enum.Font.Roboto,
-    robotomono = Enum.Font.RobotoMono,
-    ubuntu = Enum.Font.Ubuntu,
-    arimo = Enum.Font.Arimo,
-    code = Enum.Font.Code,
-    gotham = Enum.Font.Gotham
-}
-local fontOrder = {'roboto', 'robotomono', 'ubuntu', 'arimo', 'code', 'gotham'}
-local currentFontKey = 'roboto'
-local currentFont = fontMap.roboto
+local fontMap = {}
+local fontDisplayNames = {}
+local fontOrder = {}
+
+local function normalizeFontKey(str)
+    return tostring(str):lower():gsub('^%.', ''):gsub('[^%w]', '')
+end
+
+local function makeCloudFont(id)
+    local ok, f = pcall(function()
+        return Font.new('rbxassetid://' .. tostring(id), Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    end)
+    if (ok and f) then
+        return f
+    end
+    return Enum.Font.Roboto
+end
+
+local function makeEnumFont(enumItem)
+    local ok, f = pcall(function()
+        return Font.fromEnum(enumItem)
+    end)
+    if (ok and f) then
+        return f
+    end
+    return enumItem
+end
+
+do
+    local marketplaceFonts = {
+        {'Inter', 12187365364},
+        {'Builder Mono', 16658246179},
+        {'Builder Sans', 16658221428},
+        {'Builder Extended', 16658237174},
+        {'IBM Plex Sans JP', 12187364147},
+        {'Fira Sans', 12187374954},
+        {'Barlow', 12187372847},
+        {'Rajdhani', 12187375422},
+        {'Sono Monospace', 12187362578},
+        {'Sono', 12187374537},
+        {'Silkscreen', 12187371840},
+        {'DotGothic16', 115505072169205},
+        {'Work Sans', 12187373327},
+        {'Montserrat', 11702779517},
+        {'Poppins', 11702779409},
+        {'Open Sans', 11598121416},
+        {'Lato', 11598289817},
+        {'Noto Sans', 12187370747},
+        {'Nunito Sans', 12187363368},
+        {'Mulish', 12187372629},
+        {'PT Sans', 12187606934},
+        {'PT Serif', 12187606624},
+        {'Rubik', 12187365977},
+        {'Kanit', 12187373592},
+        {'Cairo', 12187377099},
+        {'Mukta', 12187365559},
+        {'Hind', 12187361116},
+        {'Hind Siliguri', 12187361378},
+        {'Prompt', 12187607287},
+        {'Raleway', 11702779240},
+        {'Quicksand', 12187371324},
+        {'Goldman', 115884882777577},
+        {'Audiowide', 12187360881},
+        {'Teko', 12187376174},
+        {'Antonio', 122516982241677},
+        {'Unica One', 12187364842},
+        {'Roboto Slab', 12187368625},
+        {'Arimo', 16658254058},
+        {'Tajawal', 12187377588},
+        {'Nanum Gothic', 12187361718},
+        {'Noto Sans HK', 12187362892},
+        {'Noto Serif HK', 12187366846},
+        {'Noto Serif JP', 12187369639},
+        {'Noto Serif SC', 12187376739},
+        {'Noto Serif TC', 12187368093},
+        {'M PLUS Rounded 1c', 12188570269},
+        {'Lora', 12187366657},
+        {'Libre Baskerville', 12187365769},
+        {'Playfair Display', 12187374765},
+        {'Akronim', 12187368317},
+        {'Are You Serious', 12187363616},
+        {'Barrio', 12187371991},
+        {'Blaka', 12187365104},
+        {'Bungee Inline', 12187370000},
+        {'Bungee Shade', 12187367666},
+        {'Caesar Dressing', 12187368843},
+        {'Caveat', 12187369802},
+        {'Codystar', 12187363887},
+        {'Comic Neue', 127896232205472},
+        {'Damion', 12187607722},
+        {'Dancing Script', 8764312106},
+        {'Eater', 12187372382},
+        {'Faster One', 12187370928},
+        {'Finger Paint', 12187375716},
+        {'Frijole', 12187375194},
+        {'Fuzzy Bubbles', 11322590111},
+        {'Great Vibes', 12187375958},
+        {'Irish Grover', 12187376910},
+        {'Italianno', 12187374273},
+        {'Jolly Lodger', 77368255811694},
+        {'Kings', 12187371622},
+        {'La Belle Aurore', 12187607116},
+        {'Lobster', 8836875837},
+        {'Londrina Solid', 113086061264643},
+        {'Marhey', 12187364648},
+        {'Monofett', 12187606783},
+        {'Monoton', 12187374098},
+        {'Nosifer', 12187377325},
+        {'Nothing You Could Do', 12187367901},
+        {'Pacifico', 12187367362},
+        {'Parisienne', 12187361943},
+        {'Rubik Burned', 12187363148},
+        {'Rubik Iso', 12187362120},
+        {'Rubik Marker Hatch', 12187367066},
+        {'Rubik Maze', 12187366475},
+        {'Rubik Wet Paint', 12187369046},
+        {'Rye', 12187372175},
+        {'Sedgwick Ave Display', 12187376357},
+        {'Shadows Into Light', 12187607493},
+        {'Tangerine', 12187376545},
+        {'Yellowtail', 12187373881}
+    }
+
+    for _, item in ipairs(Enum.Font:GetEnumItems()) do
+        if (item ~= Enum.Font.Unknown) then
+            local k = normalizeFontKey(item.Name)
+            if (not fontMap[k]) then
+                fontMap[k] = makeEnumFont(item)
+                fontDisplayNames[k] = item.Name
+            end
+        end
+    end
+
+    for _, entry in ipairs(marketplaceFonts) do
+        local name, id = entry[1], entry[2]
+        local k = normalizeFontKey(name)
+        if (not fontMap[k]) then
+            fontMap[k] = makeCloudFont(id)
+            fontDisplayNames[k] = name
+        end
+    end
+
+    local featured = {
+        'inter', 'buildersans', 'buildermono', 'roboto', 'robotomono', 'robotocondensed',
+        'ibmplexsansjp', 'firasans', 'barlow', 'rajdhani', 'titilliumweb', 'ubuntu',
+        'arimo', 'jura', 'sarpanch', 'worksans', 'montserrat', 'opensans', 'notosans',
+        'lato', 'sonomonospace', 'silkscreen', 'dotgothic16', 'code', 'gotham'
+    }
+    local added = {}
+    for _, k in ipairs(featured) do
+        if (fontMap[k] and not added[k]) then
+            table.insert(fontOrder, k)
+            added[k] = true
+        end
+    end
+
+    local rest = {}
+    for k in pairs(fontMap) do
+        if (not added[k]) then
+            table.insert(rest, k)
+        end
+    end
+    table.sort(rest, function(a, b)
+        return (fontDisplayNames[a] or a):lower() < (fontDisplayNames[b] or b):lower()
+    end)
+    for _, k in ipairs(rest) do
+        table.insert(fontOrder, k)
+    end
+end
+
+local currentFontKey = fontMap.inter and 'inter' or 'roboto'
+local currentFont = fontMap[currentFontKey] or Enum.Font.Roboto
 local currentScale = 1
 
 local function resolveFont(input)
-    if (typeof(input) == 'EnumItem' and input.EnumType == Enum.Font) then
+    if (typeof(input) == 'Font') then
         for k, v in pairs(fontMap) do
             if (v == input) then
                 return k, v
             end
         end
-        return input.Name:lower(), input
+        return 'custom', input
+    elseif (typeof(input) == 'EnumItem' and input.EnumType == Enum.Font) then
+        local k = normalizeFontKey(input.Name)
+        if (fontMap[k]) then
+            return k, fontMap[k]
+        end
+        return k, makeEnumFont(input)
+    elseif (typeof(input) == 'number') then
+        return tostring(input), makeCloudFont(input)
     elseif (typeof(input) == 'string') then
-        local cleaned = input:lower():gsub('^%.', '')
+        local trimmed = input:gsub('^%s+', ''):gsub('%s+$', '')
+        if (trimmed:match('^rbxassetid://%d+$') or trimmed:match('^rbxasset://')) then
+            local ok, f = pcall(function()
+                return Font.new(trimmed, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+            end)
+            if (ok and f) then
+                return trimmed, f
+            end
+        end
+        local numId = tonumber(trimmed)
+        if (numId) then
+            return trimmed, makeCloudFont(numId)
+        end
+        local cleaned = normalizeFontKey(trimmed)
         if (fontMap[cleaned]) then
             return cleaned, fontMap[cleaned]
         end
         local ok, enumFont = pcall(function()
-            return Enum.Font[input]
+            return Enum.Font[trimmed]
         end)
         if (ok and enumFont) then
-            return cleaned, enumFont
+            return cleaned, makeEnumFont(enumFont)
         end
     end
     return currentFontKey, currentFont
@@ -1131,7 +1317,7 @@ do
                 BorderSizePixel = 1,
                 Name = '#settings-popover',
                 Position = UDim2.new(1, -6, 0, 34),
-                Size = UDim2.fromOffset(206, 152),
+                Size = UDim2.fromOffset(214, 214),
                 Visible = false,
                 ZIndex = 80
             }, mainFrame)
@@ -1208,12 +1394,18 @@ do
                 PaddingBottom = UDim.new(0, 6)
             }, popBody)
 
-            local fontLabel = create('TextLabel', {
+            local fontHeader = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#font-header',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, 0, 0, 14),
+                ZIndex = 82
+            }, popBody)
+            create('TextLabel', {
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#font-label',
-                Position = UDim2.fromOffset(0, 0),
-                Size = UDim2.new(1, 0, 0, 14),
+                Size = UDim2.new(0.4, 0, 1, 0),
                 Text = 'font',
                 TextColor3 = theme.TextDim,
                 TextSize = 11,
@@ -1221,54 +1413,102 @@ do
                 TextStrokeTransparency = 0.85,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 82
-            }, popBody)
+            }, fontHeader)
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#font-active',
+                Position = UDim2.fromScale(0.35, 0),
+                Size = UDim2.new(0.65, 0, 1, 0),
+                Text = '.' .. currentFontKey,
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 82
+            }, fontHeader)
 
             local fontGroup = create('Frame', {
                 BackgroundColor3 = theme.Inset1,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Name = '#font-group',
                 Position = UDim2.fromOffset(0, 16),
-                Size = UDim2.new(1, 0, 0, 68),
+                Size = UDim2.new(1, 0, 0, 126),
                 ZIndex = 82
             }, popBody)
             makeCorner(fontGroup, cornerPx)
             makeStroke(fontGroup, theme.Stroke, 1)
 
-            for idx, fk in ipairs(fontOrder) do
-                local col = (idx - 1) % 2
-                local row = math.floor((idx - 1) / 2)
-                local btn = create('TextButton', {
-                    AutoButtonColor = false,
-                    BackgroundColor3 = theme.Button1,
-                    BorderSizePixel = 0,
-                    Font = fontMap[fk],
-                    Name = '#fopt-' .. fk,
-                    Position = UDim2.new(col * 0.5, col == 0 and 2 or 1, 0, 2 + row * 22),
-                    Size = UDim2.new(0.5, -3, 0, 20),
-                    Text = '.' .. fk,
-                    TextColor3 = theme.TextDim,
-                    TextSize = 11,
-                    TextStrokeColor3 = theme.TextStroke,
-                    TextStrokeTransparency = 0.85,
-                    ZIndex = 83
-                }, fontGroup)
-                makeCorner(btn, cornerPx)
-                local ind = create('Frame', {
-                    BackgroundColor3 = theme.Primary,
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Name = '#ind',
-                    Position = UDim2.new(0, 0, 1, -2),
-                    Size = UDim2.new(1, 0, 0, 2),
-                    ZIndex = 84
-                }, btn)
-                makeGradient(ind, theme.Primary, theme.Secondary, 0)
-            end
+            local fSearchWrap = create('Frame', {
+                BackgroundColor3 = theme.Window3,
+                BorderSizePixel = 0,
+                Name = '#search-wrap',
+                Size = UDim2.new(1, 0, 0, 20),
+                ZIndex = 83
+            }, fontGroup)
+            create('Frame', {
+                BackgroundColor3 = theme.Stroke,
+                BorderSizePixel = 0,
+                Position = UDim2.new(0, 0, 1, -1),
+                Size = UDim2.new(1, 0, 0, 1),
+                ZIndex = 84
+            }, fSearchWrap)
+            local fSearch = create('TextBox', {
+                BackgroundTransparency = 1,
+                ClearTextOnFocus = false,
+                ClipsDescendants = true,
+                Font = currentFont,
+                Name = '#search',
+                PlaceholderColor3 = theme.TextDim,
+                PlaceholderText = 'search fonts...',
+                Size = UDim2.fromScale(1, 1),
+                Text = '',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 84
+            }, fSearchWrap)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, fSearch)
+
+            local fList = create('ScrollingFrame', {
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                BottomImage = 'rbxassetid://9416839567',
+                CanvasSize = UDim2.fromOffset(0, 0),
+                MidImage = 'rbxassetid://9416839567',
+                Name = '#list',
+                Position = UDim2.fromOffset(0, 20),
+                ScrollBarImageColor3 = theme.StrokeHover,
+                ScrollBarImageTransparency = 0.45,
+                ScrollBarThickness = 2,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
+                Size = UDim2.new(1, 0, 1, -20),
+                TopImage = 'rbxassetid://9416839567',
+                ZIndex = 83
+            }, fontGroup)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Vertical,
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                Padding = UDim.new(0, 2),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            }, fList)
+            create('UIPadding', {
+                PaddingTop = UDim.new(0, 3),
+                PaddingBottom = UDim.new(0, 3),
+                PaddingLeft = UDim.new(0, 3),
+                PaddingRight = UDim.new(0, 4)
+            }, fList)
 
             local scaleHeader = create('Frame', {
                 BackgroundTransparency = 1,
                 Name = '#scale-header',
-                Position = UDim2.fromOffset(0, 90),
+                Position = UDim2.fromOffset(0, 148),
                 Size = UDim2.new(1, 0, 0, 14),
                 ZIndex = 82
             }, popBody)
@@ -1307,8 +1547,8 @@ do
                 BorderSizePixel = 0,
                 ClipsDescendants = true,
                 Name = '#scale-track',
-                Position = UDim2.fromOffset(0, 106),
-                Size = UDim2.new(1, 0, 0, 10),
+                Position = UDim2.fromOffset(0, 164),
+                Size = UDim2.new(1, 0, 0, 12),
                 ZIndex = 82
             }, popBody)
             makeCorner(scaleTrack, cornerPx)
@@ -1601,39 +1841,86 @@ do
 
             do
                 local popBody = insts.settingsPopover['#body']
+                local fontHeader = popBody['#font-header']
+                local fontActiveLbl = fontHeader['#font-active']
                 local fontGroup = popBody['#font-group']
+                local fSearch = fontGroup['#search-wrap']['#search']
+                local fList = fontGroup['#list']
                 local scaleHeader = popBody['#scale-header']
                 local scaleValBtn = scaleHeader['#scale-val']
                 local scaleTrack = popBody['#scale-track']
                 local scaleFill = scaleTrack['#fill']
 
-                local function syncPopoverFont(fKey)
-                    for _, fk in ipairs(fontOrder) do
-                        local btn = fontGroup['#fopt-' .. fk]
-                        local active = (fk == fKey)
-                        tween(btn, {
-                            BackgroundColor3 = active and theme.Button3 or theme.Button1,
-                            TextColor3 = active and theme.TextPrimary or theme.TextDim
-                        }, 0.16, 1)
-                        tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.16, 1)
-                    end
-                end
+                local popFontBtns = {}
+                for idx, fk in ipairs(fontOrder) do
+                    local disp = fontDisplayNames[fk] or fk
+                    local btn = create('TextButton', {
+                        AutoButtonColor = false,
+                        BackgroundColor3 = theme.Window3,
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Font = fontMap[fk],
+                        LayoutOrder = idx,
+                        Name = '#fopt-' .. fk,
+                        Size = UDim2.new(1, 0, 0, 19),
+                        Text = disp,
+                        TextColor3 = theme.TextDim,
+                        TextSize = 11,
+                        TextStrokeColor3 = theme.TextStroke,
+                        TextStrokeTransparency = 0.85,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        ZIndex = 84
+                    }, fList)
+                    makeCorner(btn, cornerPx)
+                    create('UIPadding', {PaddingLeft = UDim.new(0, 8)}, btn)
+                    local ind = create('Frame', {
+                        AnchorPoint = Vector2.new(0, 0.5),
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Name = '#ind',
+                        Position = UDim2.new(0, -8, 0.5, 0),
+                        Size = UDim2.new(0, 2, 0, 11),
+                        ZIndex = 85
+                    }, btn)
+                    makeGradient(ind, theme.Primary, theme.Secondary, 90)
 
-                for _, fk in ipairs(fontOrder) do
-                    local btn = fontGroup['#fopt-' .. fk]
                     btn.MouseButton1Click:Connect(function()
                         ui.setFont(fk)
                     end)
                     btn.MouseEnter:Connect(function()
                         if (currentFontKey ~= fk) then
-                            tween(btn, {BackgroundColor3 = theme.Button2, TextColor3 = theme.TextPrimary}, 0.14, 1)
+                            tween(btn, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0, TextColor3 = theme.TextPrimary}, 0.12, 1)
                         end
                     end)
                     btn.MouseLeave:Connect(function()
                         if (currentFontKey ~= fk) then
-                            tween(btn, {BackgroundColor3 = theme.Button1, TextColor3 = theme.TextDim}, 0.14, 1)
+                            tween(btn, {BackgroundTransparency = 1, TextColor3 = theme.TextDim}, 0.12, 1)
                         end
                     end)
+                    popFontBtns[fk] = btn
+                end
+
+                fSearch:GetPropertyChangedSignal('Text'):Connect(function()
+                    local q = fSearch.Text:lower():gsub('^%.', '')
+                    for fk, btn in pairs(popFontBtns) do
+                        local disp = (fontDisplayNames[fk] or fk):lower()
+                        btn.Visible = (q == '' or disp:find(q, 1, true) ~= nil or fk:find(q, 1, true) ~= nil)
+                    end
+                end)
+
+                local function syncPopoverFont(fKey)
+                    fontActiveLbl.Text = '.' .. tostring(fKey)
+                    for fk, btn in pairs(popFontBtns) do
+                        local active = (fk == fKey)
+                        tween(btn, {
+                            BackgroundColor3 = active and theme.Button3 or theme.Window3,
+                            BackgroundTransparency = active and 0 or 1,
+                            TextColor3 = active and theme.TextPrimary or theme.TextDim
+                        }, 0.14, 1)
+                        tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.14, 1)
+                    end
                 end
 
                 local minS, maxS, stepS = 0.5, 2.0, 0.05
@@ -4235,7 +4522,7 @@ do
             local controlFrame = create('Frame', {
                 BackgroundTransparency = 1,
                 Name = '#control',
-                Size = UDim2.new(1, 0, 0, 88),
+                Size = UDim2.new(1, 0, 0, 146),
                 ZIndex = 34
             })
             instances.controlFrame = controlFrame
@@ -4245,7 +4532,7 @@ do
                 Font = currentFont,
                 Name = '#label',
                 Position = UDim2.fromOffset(0, 0),
-                Size = UDim2.new(1, 0, 0, 15),
+                Size = UDim2.new(0.45, 0, 0, 15),
                 Text = 'font',
                 TextColor3 = theme.TextPrimary,
                 TextSize = 12,
@@ -4256,47 +4543,98 @@ do
             }, controlFrame)
             create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, label)
 
+            local activeLbl = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#active',
+                Position = UDim2.new(0.4, 0, 0, 0),
+                Size = UDim2.new(0.6, 0, 0, 15),
+                Text = '.' .. currentFontKey,
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 35
+            }, controlFrame)
+            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, activeLbl)
+
             local group = create('Frame', {
                 BackgroundColor3 = theme.Inset1,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Name = '#group',
                 Position = UDim2.fromOffset(5, 17),
-                Size = UDim2.new(1, -10, 0, 68),
+                Size = UDim2.new(1, -10, 1, -19),
                 ZIndex = 35
             }, controlFrame)
             makeCorner(group, cornerPx)
             makeStroke(group, theme.Stroke, 1)
 
-            for idx, fk in ipairs(fontOrder) do
-                local col = (idx - 1) % 2
-                local row = math.floor((idx - 1) / 2)
-                local btn = create('TextButton', {
-                    AutoButtonColor = false,
-                    BackgroundColor3 = theme.Button1,
-                    BorderSizePixel = 0,
-                    Font = fontMap[fk],
-                    Name = '#fopt-' .. fk,
-                    Position = UDim2.new(col * 0.5, col == 0 and 2 or 1, 0, 2 + row * 22),
-                    Size = UDim2.new(0.5, -3, 0, 20),
-                    Text = '.' .. fk,
-                    TextColor3 = theme.TextDim,
-                    TextSize = 11,
-                    TextStrokeColor3 = theme.TextStroke,
-                    TextStrokeTransparency = 0.85,
-                    ZIndex = 36
-                }, group)
-                makeCorner(btn, cornerPx)
-                local ind = create('Frame', {
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Name = '#ind',
-                    Position = UDim2.new(0, 0, 1, -2),
-                    Size = UDim2.new(1, 0, 0, 2),
-                    ZIndex = 37
-                }, btn)
-                makeGradient(ind, theme.Primary, theme.Secondary, 0)
-            end
+            local searchWrap = create('Frame', {
+                BackgroundColor3 = theme.Window3,
+                BorderSizePixel = 0,
+                Name = '#search-wrap',
+                Size = UDim2.new(1, 0, 0, 20),
+                ZIndex = 36
+            }, group)
+            create('Frame', {
+                BackgroundColor3 = theme.Stroke,
+                BorderSizePixel = 0,
+                Position = UDim2.new(0, 0, 1, -1),
+                Size = UDim2.new(1, 0, 0, 1),
+                ZIndex = 37
+            }, searchWrap)
+
+            local searchBox = create('TextBox', {
+                BackgroundTransparency = 1,
+                ClearTextOnFocus = false,
+                ClipsDescendants = true,
+                Font = currentFont,
+                Name = '#search',
+                PlaceholderColor3 = theme.TextDim,
+                PlaceholderText = 'search fonts...',
+                Size = UDim2.fromScale(1, 1),
+                Text = '',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 37
+            }, searchWrap)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, searchBox)
+
+            local list = create('ScrollingFrame', {
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                BottomImage = 'rbxassetid://9416839567',
+                CanvasSize = UDim2.fromOffset(0, 0),
+                MidImage = 'rbxassetid://9416839567',
+                Name = '#list',
+                Position = UDim2.fromOffset(0, 20),
+                ScrollBarImageColor3 = theme.StrokeHover,
+                ScrollBarImageTransparency = 0.45,
+                ScrollBarThickness = 2,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
+                Size = UDim2.new(1, 0, 1, -20),
+                TopImage = 'rbxassetid://9416839567',
+                ZIndex = 36
+            }, group)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Vertical,
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                Padding = UDim.new(0, 2),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            }, list)
+            create('UIPadding', {
+                PaddingTop = UDim.new(0, 3),
+                PaddingBottom = UDim.new(0, 3),
+                PaddingLeft = UDim.new(0, 3),
+                PaddingRight = UDim.new(0, 4)
+            }, list)
         end
         fontSelector.instances = instances
 
@@ -4314,22 +4652,47 @@ do
             local insts = {}
             insts.controlFrame = self.instances.controlFrame:Clone()
             insts.label = insts.controlFrame['#label']
+            insts.active = insts.controlFrame['#active']
             insts.group = insts.controlFrame['#group']
+            insts.search = insts.group['#search-wrap']['#search']
+            insts.list = insts.group['#list']
 
-            local function sync(fKey)
-                for _, fk in ipairs(fontOrder) do
-                    local btn = insts.group['#fopt-' .. fk]
-                    local active = (fk == fKey)
-                    tween(btn, {
-                        BackgroundColor3 = active and theme.Button3 or theme.Button1,
-                        TextColor3 = active and theme.TextPrimary or theme.TextDim
-                    }, 0.16, 1)
-                    tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.16, 1)
-                end
-            end
+            local btns = {}
+            for idx, fk in ipairs(fontOrder) do
+                local disp = fontDisplayNames[fk] or fk
+                local btn = create('TextButton', {
+                    AutoButtonColor = false,
+                    BackgroundColor3 = theme.Window3,
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Font = fontMap[fk],
+                    LayoutOrder = idx,
+                    Name = '#fopt-' .. fk,
+                    Size = UDim2.new(1, 0, 0, 19),
+                    Text = disp,
+                    TextColor3 = theme.TextDim,
+                    TextSize = 11,
+                    TextStrokeColor3 = theme.TextStroke,
+                    TextStrokeTransparency = 0.85,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 37
+                }, insts.list)
+                makeCorner(btn, cornerPx)
+                create('UIPadding', {PaddingLeft = UDim.new(0, 8)}, btn)
 
-            for _, fk in ipairs(fontOrder) do
-                local btn = insts.group['#fopt-' .. fk]
+                local ind = create('Frame', {
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Name = '#ind',
+                    Position = UDim2.new(0, -8, 0.5, 0),
+                    Size = UDim2.new(0, 2, 0, 11),
+                    ZIndex = 38
+                }, btn)
+                makeGradient(ind, theme.Primary, theme.Secondary, 90)
+
                 btn.MouseButton1Click:Connect(function()
                     ui.setFont(fk)
                     new:fireEvent('onFontChange', fk, fontMap[fk])
@@ -4337,15 +4700,37 @@ do
                 btn.MouseEnter:Connect(function()
                     new:showTooltip()
                     if (currentFontKey ~= fk) then
-                        tween(btn, {BackgroundColor3 = theme.Button2, TextColor3 = theme.TextPrimary}, 0.14, 1)
+                        tween(btn, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0, TextColor3 = theme.TextPrimary}, 0.12, 1)
                     end
                 end)
                 btn.MouseLeave:Connect(function()
                     new:hideTooltip()
                     if (currentFontKey ~= fk) then
-                        tween(btn, {BackgroundColor3 = theme.Button1, TextColor3 = theme.TextDim}, 0.14, 1)
+                        tween(btn, {BackgroundTransparency = 1, TextColor3 = theme.TextDim}, 0.12, 1)
                     end
                 end)
+                btns[fk] = btn
+            end
+
+            insts.search:GetPropertyChangedSignal('Text'):Connect(function()
+                local q = insts.search.Text:lower():gsub('^%.', '')
+                for fk, btn in pairs(btns) do
+                    local disp = (fontDisplayNames[fk] or fk):lower()
+                    btn.Visible = (q == '' or disp:find(q, 1, true) ~= nil or fk:find(q, 1, true) ~= nil)
+                end
+            end)
+
+            local function sync(fKey)
+                insts.active.Text = '.' .. tostring(fKey)
+                for fk, btn in pairs(btns) do
+                    local active = (fk == fKey)
+                    tween(btn, {
+                        BackgroundColor3 = active and theme.Button3 or theme.Window3,
+                        BackgroundTransparency = active and 0 or 1,
+                        TextColor3 = active and theme.TextPrimary or theme.TextDim
+                    }, 0.14, 1)
+                    tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.14, 1)
+                end
             end
 
             sync(currentFontKey)
@@ -4370,6 +4755,9 @@ do
             new.name = s_title
             table.insert(self.controls, new)
 
+            if (typeof(settings.height) == 'number') then
+                new.instances.controlFrame.Size = UDim2.new(1, 0, 0, settings.height + 20)
+            end
             new.instances.label.Text = s_title
             new.instances.controlFrame.Parent = self.instances.controlMenu
 
@@ -7178,14 +7566,19 @@ do
     end
 end
 
-local function applyFontToTree(root, fontEnum)
+local function applyFontToTree(root, fontFace)
     if (not root) then return end
+    local isFontObj = (typeof(fontFace) == 'Font')
     local function maybeApply(inst)
         if (inst:IsA('TextLabel') or inst:IsA('TextButton') or inst:IsA('TextBox')) then
             if (inst.Name:sub(1, 6) == '#fopt-') then
                 return
             end
-            inst.Font = fontEnum
+            if (isFontObj) then
+                inst.FontFace = fontFace
+            else
+                inst.Font = fontFace
+            end
         end
     end
     maybeApply(root)
@@ -7206,19 +7599,20 @@ do
     ui.hotkeys = {}
     ui.scriptCns = {}
 
-    ui.fonts = {
-        roboto = Enum.Font.Roboto,
-        robotomono = Enum.Font.RobotoMono,
-        ubuntu = Enum.Font.Ubuntu,
-        arimo = Enum.Font.Arimo,
-        code = Enum.Font.Code,
-        gotham = Enum.Font.Gotham
-    }
-    ui.Fonts = ui.fonts
+    ui.fonts = fontMap
+    ui.Fonts = fontMap
     ui.autoDisableToggles = true
 
     local windows = ui.windows
     local notifs = ui.notifs
+
+    ui.getFonts = function()
+        local list = {}
+        for _, k in ipairs(fontOrder) do
+            table.insert(list, {key = k, name = fontDisplayNames[k] or k, font = fontMap[k]})
+        end
+        return list
+    end
 
     ui.getFont = function()
         return currentFont

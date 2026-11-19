@@ -9,7 +9,7 @@ local uiLoader = loadstring(game:HttpGet('https://raw.githubusercontent.com/x8lu
 local ui = uiLoader({
     rounding = false,
     smoothDragging = false,
-    font = 'roboto',
+    font = 'inter',
     scale = 1
 })
 ```
@@ -17,6 +17,6 @@ local ui = uiLoader({
 ## Controls & Features
 
 - **Core Controls**: `addLabel`, `addToggle` (supports inline `toggle:addHotkey()` & `toggle:addColorPicker()`), `addButton` (`small` / `large`), `addDualButton`, `addSlider` (inline bar value + right-click numeric input), `addRangeSlider`, `addColorPicker`, `addTextbox`, `addHotkey`, `addDropdown`, `addMultiDropdown`, `addSegmented`, `addListbox` (with live search filter), `addProgressBar`, `addDivider`, `addParagraph`.
-- **Font Selector**: Switch live between `.roboto` (default), `.robotomono`, `.ubuntu`, `.arimo`, `.code`, and `.gotham` via `ui.setFont(ui.fonts.roboto)`, `section:addFontSelector()`, or the titlebar appearance popover.
+- **Full Font Library (Built-in + Marketplace)**: Includes every built-in `Enum.Font` plus all 91 official Roblox Creator Store fonts (`Inter` default, `Builder Mono`, `Builder Sans`, `IBM Plex Sans JP`, `Fira Sans`, `Barlow`, `Rajdhani`, `Sono Monospace`, `Silkscreen`, `DotGothic16`, `Work Sans`, `Montserrat`, `Poppins`, `Open Sans`, `Lato`, and more) with a live-preview searchable picker in both `section:addFontSelector()` and the titlebar appearance popover. Supports `ui.setFont('inter')`, `ui.setFont(ui.fonts.buildermono)`, `ui.setFont(12187365364)`, or any `Font` / `Enum.Font`.
 - **UI Scaler**: Scale everything inside the main UI without resizing the outer window (`0.5x` – `2.5x`) via `ui.setScale(1.15)`, `section:addUIScaler()`, or the titlebar appearance popover.
 - **Draggable HUD Panels**: `ui.setWatermark(text, visible)`, `ui.toggleWatermark(bool)`, and `ui.toggleKeybindList(bool)`.
