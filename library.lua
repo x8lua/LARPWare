@@ -2070,31 +2070,6 @@ do
                 ZIndex = 30
             }, mainFrame)
 
-            create('Frame', {
-                Active = false,
-                BackgroundColor3 = theme.Window2,
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                Name = '#tab-veil',
-                Position = UDim2.fromScale(0, 0),
-                Size = UDim2.fromScale(1, 1),
-                Visible = false,
-                ZIndex = 43
-            }, pageRegion)
-
-            local tabSweep = create('Frame', {
-                Active = false,
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                Name = '#tab-sweep',
-                Position = UDim2.fromOffset(0, 0),
-                Size = UDim2.new(0, 0, 0, 2),
-                Visible = false,
-                ZIndex = 46
-            }, pageRegion)
-            makeGradient(tabSweep, theme.Primary, theme.Secondary, 0)
-
             local easterEgg = create('Frame', {
                 Active = false,
                 BackgroundColor3 = theme.Window2,
@@ -2216,6 +2191,75 @@ do
                 Scale = currentScale
             }, menu)
 
+            local activePill = create('Frame', {
+                Active = false,
+                BackgroundColor3 = theme.Button3,
+                BackgroundTransparency = 0.12,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#active-pill',
+                Position = UDim2.new(0, 7, 0, 7),
+                Size = UDim2.new(1, -14, 0, 30),
+                Visible = false,
+                ZIndex = 51
+            }, menu)
+            makeCorner(activePill, cornerPx)
+            makeStroke(activePill, theme.StrokeHover, 1)
+
+            local pillWash = create('Frame', {
+                Active = false,
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 0,
+                BorderSizePixel = 0,
+                Name = '#active-bg',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 51
+            }, activePill)
+            create('UIGradient', {
+                Name = '#wash',
+                Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0.70),
+                    NumberSequenceKeypoint.new(0.58, 0.90),
+                    NumberSequenceKeypoint.new(1, 1)
+                }),
+                Rotation = 0
+            }, pillWash)
+
+            local pillInd = create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#indicator',
+                Position = UDim2.new(0, 0, 0.5, 0),
+                Size = UDim2.new(0, 3, 0, 18),
+                ZIndex = 53
+            }, activePill)
+            makeCorner(pillInd, 2, true)
+            makeGradient(pillInd, theme.Primary, theme.Secondary, 90)
+
+            local pillDot = create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(1, 0.5),
+                BackgroundColor3 = theme.Primary,
+                BorderSizePixel = 0,
+                Name = '#active-dot',
+                Position = UDim2.new(1, -8, 0.5, 0),
+                Size = UDim2.fromOffset(4, 4),
+                ZIndex = 53
+            }, activePill)
+            makeCorner(pillDot, 2, true)
+
+            local tabButtons = create('Frame', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Name = '#tab-buttons',
+                Position = UDim2.fromScale(0, 0),
+                Size = UDim2.fromScale(1, 0),
+                ZIndex = 52
+            }, menu)
+
             create('UIListLayout', {
                 FillDirection = Enum.FillDirection.Vertical,
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
@@ -2223,13 +2267,13 @@ do
                 Padding = UDim.new(0, 5),
                 SortOrder = Enum.SortOrder.LayoutOrder,
                 VerticalAlignment = Enum.VerticalAlignment.Top
-            }, menu)
+            }, tabButtons)
 
             create('UIPadding', {
                 Name = '#padding',
                 PaddingTop = UDim.new(0, 7),
                 PaddingBottom = UDim.new(0, 7)
-            }, menu)
+            }, tabButtons)
 
             local sideFooter = create('TextButton', {
                 AutoButtonColor = false,
@@ -3157,6 +3201,8 @@ do
             insts.sideBar = insts.mainFrame['#sidebar']
             insts.sideFooter = insts.sideBar['#sidebar-footer']
             insts.tabMenu = insts.sideBar['#menu-clip']['#menu']
+            insts.tabButtons = insts.tabMenu['#tab-buttons']
+            insts.activePill = insts.tabMenu['#active-pill']
             insts.tabMenu['#content-scale'].Scale = currentScale
             insts.tabMenu.Size = UDim2.fromScale(1 / currentScale, 1 / currentScale)
             insts.resizeHandle = insts.mainFrame['#resize-handle']
@@ -4783,7 +4829,7 @@ do
 
             local pageSelector = create('TextButton', {
                 AutoButtonColor = false,
-                BackgroundColor3 = theme.Button1,
+                BackgroundColor3 = theme.Button2,
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 ClipsDescendants = true,
@@ -4798,39 +4844,6 @@ do
             makeCorner(pageSelector, cornerPx)
             local stroke = makeStroke(pageSelector, theme.Stroke, 1)
             stroke.Transparency = 1
-
-            local activeBg = create('Frame', {
-                Active = false,
-                BackgroundColor3 = theme.Primary,
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                Name = '#active-bg',
-                Position = UDim2.fromOffset(0, 0),
-                Size = UDim2.fromScale(1, 1),
-                ZIndex = 52
-            }, pageSelector)
-            create('UIGradient', {
-                Name = '#wash',
-                Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.72),
-                    NumberSequenceKeypoint.new(0.55, 0.90),
-                    NumberSequenceKeypoint.new(1, 1)
-                }),
-                Rotation = 0
-            }, activeBg)
-
-            local indicator = create('Frame', {
-                AnchorPoint = Vector2.new(0, 0.5),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                Name = '#indicator',
-                Position = UDim2.new(0, 0, 0.5, 0),
-                Size = UDim2.new(0, 3, 0, 6),
-                ZIndex = 54
-            }, pageSelector)
-            makeCorner(indicator, 2, true)
-            makeGradient(indicator, theme.Primary, theme.Secondary, 90)
 
             create('Frame', {
                 Active = false,
@@ -4860,19 +4873,6 @@ do
                 ZIndex = 54
             }, pageSelector)
 
-            local activeDot = create('Frame', {
-                Active = false,
-                AnchorPoint = Vector2.new(1, 0.5),
-                BackgroundColor3 = theme.Primary,
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                Name = '#active-dot',
-                Position = UDim2.new(1, -8, 0.5, 0),
-                Size = UDim2.fromOffset(4, 4),
-                ZIndex = 54
-            }, pageSelector)
-            makeCorner(activeDot, 2, true)
-
             instances.pageSelector = pageSelector
         end
         menu.instances = instances
@@ -4881,103 +4881,45 @@ do
             if (self.window and self.window.setEasterEgg) then
                 self.window:setEasterEgg(false)
             end
-            if (self.selected and self.window._activeMenu == self) then
-                return self
-            end
-
             local win = self.window
-            local prev = win._activeMenu
-            win._activeMenu = self
-            win._tabAnimId = (win._tabAnimId or 0) + 1
-            local animId = win._tabAnimId
-            local dir = (prev and self.id < prev.id) and -1 or 1
-
             for _, m in ipairs(win.menus) do
+                tween(m.instances.menuFrame, {Position = UDim2.fromScale(0, m.id - self.id)}, 0.35, 1)
                 if (m ~= self) then
                     m:deselect()
-                    if (m ~= prev and m.instances and m.instances.menuFrame) then
-                        m.instances.menuFrame.Visible = false
-                        m.instances.menuFrame.Position = UDim2.fromScale(0, 0)
-                    end
                 end
-            end
-
-            local mf = self.instances.menuFrame
-            local lr = self.instances.leftRegion
-            local rr = self.instances.rightRegion
-            local cScale = mf['#content-scale']
-            mf.Visible = true
-
-            if (prev and prev ~= self and prev.instances and prev.instances.menuFrame) then
-                local pmf = prev.instances.menuFrame
-                tween(pmf, {Position = UDim2.fromOffset(0, -dir * 16)}, 0.16, 1)
-                task.delay(0.16, function()
-                    if (not prev.selected and pmf and pmf.Parent) then
-                        pmf.Visible = false
-                        pmf.Position = UDim2.fromScale(0, 0)
-                    end
-                end)
-
-                mf.Position = UDim2.fromOffset(0, dir * 24)
-                cScale.Scale = currentScale * 0.972
-                lr.Position = UDim2.fromOffset(0, dir * 10)
-                rr.Position = UDim2.new(0.5, 0, 0, dir * 18)
-
-                tween(mf, {Position = UDim2.fromScale(0, 0)}, 0.30, 1)
-                tween(cScale, {Scale = currentScale}, 0.30, 1)
-                tween(lr, {Position = UDim2.fromOffset(0, 0)}, 0.28, 1)
-                tween(rr, {Position = UDim2.fromScale(0.5, 0)}, 0.35, 1)
-
-                local pr = win.instances and win.instances.pageRegion
-                if (pr) then
-                    local veil = pr:FindFirstChild('#tab-veil')
-                    if (veil) then
-                        veil.BackgroundColor3 = theme.Window2
-                        veil.BackgroundTransparency = 0.28
-                        veil.Visible = true
-                        tween(veil, {BackgroundTransparency = 1}, 0.26, 1)
-                        task.delay(0.27, function()
-                            if (win._tabAnimId == animId and veil and veil.Parent) then
-                                veil.Visible = false
-                            end
-                        end)
-                    end
-                    local sweep = pr:FindFirstChild('#tab-sweep')
-                    if (sweep) then
-                        sweep.Size = UDim2.new(0, 0, 0, 2)
-                        sweep.BackgroundTransparency = 0
-                        sweep.Visible = true
-                        tween(sweep, {Size = UDim2.new(1, 0, 0, 2)}, 0.24, 1)
-                        tween(sweep, {BackgroundTransparency = 1}, 0.34, 2)
-                        task.delay(0.35, function()
-                            if (win._tabAnimId == animId and sweep and sweep.Parent) then
-                                sweep.Visible = false
-                            end
-                        end)
-                    end
-                end
-            else
-                mf.Position = UDim2.fromScale(0, 0)
-                cScale.Scale = currentScale
-                lr.Position = UDim2.fromOffset(0, 0)
-                rr.Position = UDim2.fromScale(0.5, 0)
             end
 
             self.selected = true
             local ps = self.instances.pageSelector
             local lbl = ps['#label']
-            local ind = ps['#indicator']
-            ind.Size = UDim2.new(0, 3, 0, 2)
-            tween(ps, {
-                BackgroundColor3 = self.selectorFocused and theme.Button4 or theme.Button3,
-                BackgroundTransparency = 0.15
-            }, 0.2, 1)
-            tween(ps['#active-bg'], {BackgroundColor3 = theme.Primary, BackgroundTransparency = 0}, 0.22, 1)
-            tween(ps['#stroke'], {Color = theme.StrokeHover, Transparency = 0}, 0.2, 1)
-            tween(ind, {BackgroundTransparency = 0, Size = UDim2.new(0, 3, 0, 18)}, 0.26, 1)
-            tween(ps['#active-dot'], {BackgroundColor3 = theme.Primary, BackgroundTransparency = 0}, 0.22, 1)
-            tween(lbl, {TextColor3 = theme.TextPrimary, Position = UDim2.fromOffset(31, 0)}, 0.2, 1)
-            setTabGlyphColor(ps['#icon-wrap'], theme.Primary, 0.2)
+            tween(ps, {BackgroundTransparency = 1}, 0.16, 1)
+            tween(ps['#stroke'], {Transparency = 1}, 0.16, 1)
+            tween(lbl, {TextColor3 = theme.TextPrimary, Position = UDim2.fromOffset(32, 0)}, 0.22, 1)
+            setTabGlyphColor(ps['#icon-wrap'], theme.Primary, 0.22)
+
+            local pill = win.instances and win.instances.activePill
+            if (pill and pill.Parent) then
+                win._pillAnimId = (win._pillAnimId or 0) + 1
+                local pAnimId = win._pillAnimId
+                local targetY = 7 + (self.id - 1) * 35
+                local ind = pill['#indicator']
+                local dot = pill['#active-dot']
+                if (not pill.Visible) then
+                    pill.Position = UDim2.new(0, 7, 0, targetY)
+                    pill.Visible = true
+                    ind.Size = UDim2.new(0, 3, 0, 18)
+                else
+                    tween(pill, {Position = UDim2.new(0, 7, 0, targetY)}, 0.32, 1)
+                    tween(ind, {Size = UDim2.new(0, 3, 0, 26)}, 0.10, 1)
+                    dot.Size = UDim2.fromOffset(2, 2)
+                    tween(dot, {Size = UDim2.fromOffset(4, 4)}, 0.28, 1)
+                    task.delay(0.11, function()
+                        if (win._pillAnimId == pAnimId and ind and ind.Parent) then
+                            tween(ind, {Size = UDim2.new(0, 3, 0, 18)}, 0.24, 1)
+                        end
+                    end)
+                end
+            end
             return self
         end
 
@@ -4987,12 +4929,9 @@ do
             local lbl = ps['#label']
             tween(ps, {
                 BackgroundColor3 = theme.Button2,
-                BackgroundTransparency = self.selectorFocused and 0.35 or 1
+                BackgroundTransparency = self.selectorFocused and 0.42 or 1
             }, 0.18, 1)
-            tween(ps['#active-bg'], {BackgroundTransparency = 1}, 0.18, 1)
-            tween(ps['#stroke'], {Color = theme.Stroke, Transparency = self.selectorFocused and 0.25 or 1}, 0.18, 1)
-            tween(ps['#indicator'], {BackgroundTransparency = 1, Size = UDim2.new(0, 3, 0, 6)}, 0.18, 1)
-            tween(ps['#active-dot'], {BackgroundTransparency = 1}, 0.16, 1)
+            tween(ps['#stroke'], {Color = theme.Stroke, Transparency = self.selectorFocused and 0.35 or 1}, 0.18, 1)
             tween(lbl, {
                 TextColor3 = self.selectorFocused and theme.TextPrimary or theme.TextDim,
                 Position = UDim2.fromOffset(self.selectorFocused and 31 or 29, 0)
@@ -5007,10 +4946,13 @@ do
                     local ps = self.instances.pageSelector
                     local lbl = ps['#label']
                     if (self.selected) then
-                        tween(ps, {BackgroundColor3 = theme.Button4, BackgroundTransparency = 0.05}, 0.16, 1)
+                        local pill = self.window and self.window.instances and self.window.instances.activePill
+                        if (pill and pill.Parent) then
+                            tween(pill, {BackgroundColor3 = theme.Button4, BackgroundTransparency = 0.04}, 0.16, 1)
+                        end
                     else
-                        tween(ps, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0.35}, 0.16, 1)
-                        tween(ps['#stroke'], {Color = theme.Stroke, Transparency = 0.25}, 0.16, 1)
+                        tween(ps, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0.42}, 0.16, 1)
+                        tween(ps['#stroke'], {Color = theme.Stroke, Transparency = 0.35}, 0.16, 1)
                         tween(lbl, {TextColor3 = theme.TextPrimary, Position = UDim2.fromOffset(31, 0)}, 0.16, 1)
                         setTabGlyphColor(ps['#icon-wrap'], theme.TextPrimary, 0.16)
                     end
@@ -5020,7 +4962,10 @@ do
                     local ps = self.instances.pageSelector
                     local lbl = ps['#label']
                     if (self.selected) then
-                        tween(ps, {BackgroundColor3 = theme.Button3, BackgroundTransparency = 0.15}, 0.16, 1)
+                        local pill = self.window and self.window.instances and self.window.instances.activePill
+                        if (pill and pill.Parent) then
+                            tween(pill, {BackgroundColor3 = theme.Button3, BackgroundTransparency = 0.12}, 0.16, 1)
+                        end
                     else
                         tween(ps, {BackgroundTransparency = 1}, 0.16, 1)
                         tween(ps['#stroke'], {Transparency = 1}, 0.16, 1)
@@ -5077,10 +5022,10 @@ do
             end)
             menuTab['#label'].Text = s_text
             makeTabGlyph(menuTab['#icon-wrap'], settings.icon or s_text, 54)
-            menuFrame.Position = UDim2.fromScale(0, 0)
-            menuFrame.Visible = (m.id == 1)
+            menuFrame.Position = UDim2.fromScale(0, m.id - 1)
+            menuFrame.Visible = true
 
-            menuTab.Parent = self.instances.tabMenu
+            menuTab.Parent = self.instances.tabButtons
             menuFrame.Parent = self.instances.pageRegion
 
             menuFrame:GetPropertyChangedSignal('CanvasPosition'):Connect(function()
@@ -10110,15 +10055,17 @@ do
                 if (w.instances.sideBar) then
                     w.instances.sideBar.BackgroundTransparency = currentTransparency * 0.55
                 end
+                if (w.instances.activePill and w.instances.activePill.Parent) then
+                    w.instances.activePill.BackgroundColor3 = theme.Button3
+                    w.instances.activePill['#stroke'].Color = theme.StrokeHover
+                    w.instances.activePill['#active-bg'].BackgroundColor3 = theme.Primary
+                    w.instances.activePill['#active-dot'].BackgroundColor3 = theme.Primary
+                end
             end
             for _, m in ipairs(w.menus or {}) do
                 local ps = m.instances and m.instances.pageSelector
                 if (ps and ps.Parent) then
                     if (m.selected) then
-                        ps.BackgroundColor3 = theme.Button3
-                        ps['#active-bg'].BackgroundColor3 = theme.Primary
-                        ps['#stroke'].Color = theme.StrokeHover
-                        ps['#active-dot'].BackgroundColor3 = theme.Primary
                         ps['#label'].TextColor3 = theme.TextPrimary
                         setTabGlyphColor(ps['#icon-wrap'], theme.Primary, 0)
                     else
