@@ -8,7 +8,7 @@ do
     local styleEnum = Enum.EasingStyle
     local dirEnum = Enum.EasingDirection
     local direction = dirEnum.Out
-    local styles = {styleEnum.Exponential, styleEnum.Linear, styleEnum.Quad}
+    local styles = {styleEnum.Exponential, styleEnum.Linear, styleEnum.Quad, styleEnum.Back, styleEnum.Quint}
 
     function tween(object, props, duration, style)
         local tweenInfo = TweenInfo.new(duration, styles[style or 1] or styleEnum.Exponential, direction)
@@ -20,6 +20,7 @@ end
 
 local currentTextScale = 1
 local currentTransparency = 0
+local enableIntro = true
 local theme
 local rounding
 local cornerPx = 0
@@ -424,6 +425,9 @@ do
         end
         if (typeof(settings.textScale) == 'number') then
             currentTextScale = math.clamp(settings.textScale, 0.6, 2.0)
+        end
+        if (settings.intro ~= nil) then
+            enableIntro = settings.intro and true or false
         end
         if (typeof(theme) == 'string') then
             if (theme == 'cherry') then
@@ -1152,6 +1156,504 @@ end
 local uiScreen = Instance.new('ScreenGui')
 local notifContainer
 local notifScale
+local activeIntroBlur
+local activeIntroGui
+
+local introAssetMap = {}
+local introAssetsReady = false
+
+local function loadIntroAssets()
+    if (introAssetsReady) then
+        return introAssetMap
+    end
+    local getAsset = (typeof(getcustomasset) == 'function' and getcustomasset)
+        or (typeof(getsynasset) == 'function' and getsynasset)
+    if (not getAsset or typeof(writefile) ~= 'function') then
+        introAssetsReady = true
+        return introAssetMap
+    end
+
+    local folder = 'LARPWare'
+    if (typeof(isfolder) == 'function' and typeof(makefolder) == 'function' and not isfolder(folder)) then
+        pcall(makefolder, folder)
+    end
+
+    local letters = {'L', 'A', 'R', 'P'}
+    local doneCount = 0
+    for _, ch in ipairs(letters) do
+        task.spawn(function()
+            local filePath = folder .. '/intro_' .. ch .. '.png'
+            local needDl = true
+            if (typeof(isfile) == 'function' and isfile(filePath)) then
+                if (typeof(readfile) == 'function') then
+                    local okRead, existing = pcall(readfile, filePath)
+                    if (okRead and typeof(existing) == 'string' and #existing > 500) then
+                        needDl = false
+                    end
+                else
+                    needDl = false
+                end
+            end
+            if (needDl) then
+                local okReq, data = pcall(function()
+                    return game:HttpGet('https://api.x8stuff.lol/larpware/assets/intro_' .. ch .. '.png')
+                end)
+                if (not okReq or typeof(data) ~= 'string' or #data <= 500) then
+                    okReq, data = pcall(function()
+                        return game:HttpGet('https://raw.githubusercontent.com/x8lua/LARPWare/main/assets/intro_' .. ch .. '.png')
+                    end)
+                end
+                if (okReq and typeof(data) == 'string' and #data > 500) then
+                    pcall(writefile, filePath, data)
+                end
+            end
+            if (typeof(isfile) ~= 'function' or isfile(filePath)) then
+                local okAsset, assetId = pcall(getAsset, filePath)
+                if (okAsset and typeof(assetId) == 'string' and assetId ~= '') then
+                    introAssetMap[ch] = assetId
+                end
+            end
+            doneCount += 1
+        end)
+    end
+
+    local waitStart = os.clock()
+    while (doneCount < #letters and (os.clock() - waitStart) < 3.5) do
+        task.wait(0.02)
+    end
+
+    local preloadList = {}
+    for _, ch in ipairs(letters) do
+        if (introAssetMap[ch]) then
+            table.insert(preloadList, introAssetMap[ch])
+        end
+    end
+    if (#preloadList > 0) then
+        pcall(function()
+            game:GetService('ContentProvider'):PreloadAsync(preloadList)
+        end)
+    end
+    introAssetsReady = true
+    return introAssetMap
+end
+
+local function playLarpIntro()
+    if (activeIntroGui) then
+        pcall(function() activeIntroGui:Destroy() end)
+        activeIntroGui = nil
+    end
+    if (activeIntroBlur) then
+        pcall(function() activeIntroBlur:Destroy() end)
+        activeIntroBlur = nil
+    end
+
+    local assets = loadIntroAssets()
+    local introGui = Instance.new('ScreenGui')
+    introGui.Name = randomGuiName()
+    introGui.IgnoreGuiInset = true
+    introGui.OnTopOfCoreBlur = true
+    introGui.DisplayOrder = 980000000
+    introGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    introGui.ResetOnSpawn = false
+    introGui.Parent = targetParent
+    activeIntroGui = introGui
+
+    local blur
+    pcall(function()
+        blur = Instance.new('BlurEffect')
+        blur.Name = 'LARPWareIntroBlur'
+        blur.Size = 0
+        blur.Parent = game:GetService('Lighting')
+        activeIntroBlur = blur
+    end)
+
+    local electricBlue = Color3.fromRGB(22, 118, 255)
+    local electricCyan = Color3.fromRGB(130, 224, 255)
+
+    local bg = create('TextButton', {
+        Active = true,
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(4, 6, 12),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Name = '#intro-bg',
+        Size = UDim2.fromScale(1, 1),
+        Text = '',
+        ZIndex = 6000
+    }, introGui)
+
+    local topBar = create('Frame', {
+        Active = false,
+        BackgroundColor3 = Color3.fromRGB(2, 3, 6),
+        BorderSizePixel = 0,
+        Name = '#bar-top',
+        Position = UDim2.fromOffset(0, -28),
+        Size = UDim2.new(1, 0, 0, 28),
+        ZIndex = 6005
+    }, introGui)
+    local botBar = create('Frame', {
+        Active = false,
+        AnchorPoint = Vector2.new(0, 1),
+        BackgroundColor3 = Color3.fromRGB(2, 3, 6),
+        BorderSizePixel = 0,
+        Name = '#bar-bot',
+        Position = UDim2.new(0, 0, 1, 28),
+        Size = UDim2.new(1, 0, 0, 28),
+        ZIndex = 6005
+    }, introGui)
+
+    local auraOuter = create('ImageLabel', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Image = 'rbxassetid://7331400934',
+        ImageColor3 = electricBlue,
+        ImageTransparency = 1,
+        Name = '#aura-outer',
+        Position = UDim2.fromScale(0.5, 0.48),
+        ScaleType = Enum.ScaleType.Stretch,
+        Size = UDim2.fromOffset(660, 270),
+        ZIndex = 6006
+    }, introGui)
+
+    local auraCore = create('ImageLabel', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        Image = 'rbxassetid://7331400934',
+        ImageColor3 = electricCyan,
+        ImageTransparency = 1,
+        Name = '#aura-core',
+        Position = UDim2.fromScale(0.5, 0.48),
+        ScaleType = Enum.ScaleType.Stretch,
+        Size = UDim2.fromOffset(380, 140),
+        ZIndex = 6007
+    }, introGui)
+
+    local horizon = create('Frame', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        Name = '#horizon',
+        Position = UDim2.fromScale(0.5, 0.48),
+        Size = UDim2.fromOffset(0, 1),
+        ZIndex = 6008
+    }, introGui)
+    create('UIGradient', {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, electricBlue),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(235, 248, 255)),
+            ColorSequenceKeypoint.new(1, electricBlue)
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(0.22, 0.15),
+            NumberSequenceKeypoint.new(0.5, 0),
+            NumberSequenceKeypoint.new(0.78, 0.15),
+            NumberSequenceKeypoint.new(1, 1)
+        })
+    }, horizon)
+
+    local stage = create('Frame', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        ClipsDescendants = false,
+        Name = '#stage',
+        Position = UDim2.fromScale(0.5, 0.48),
+        Size = UDim2.fromOffset(560, 220),
+        ZIndex = 6015
+    }, introGui)
+    local stageScale = create('UIScale', {Name = '#stage-scale', Scale = 1}, stage)
+
+    local glintClip = create('Frame', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+        Name = '#glint-clip',
+        Position = UDim2.fromScale(0.5, 0.42),
+        Size = UDim2.fromOffset(520, 160),
+        ZIndex = 6025
+    }, stage)
+    local glintBar = create('Frame', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(235, 248, 255),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Name = '#glint',
+        Position = UDim2.new(0, -140, 0.5, 0),
+        Rotation = 22,
+        Size = UDim2.fromOffset(64, 240),
+        ZIndex = 6026
+    }, glintClip)
+    create('UIGradient', {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(0.5, 0.58),
+            NumberSequenceKeypoint.new(1, 1)
+        })
+    }, glintBar)
+
+    local letterSpecs = {
+        {ch = 'L', x = -162, dx = -28, dy = -48, rot = -15, exitX = -194},
+        {ch = 'A', x = -54, dx = -10, dy = 52, rot = 12, exitX = -66},
+        {ch = 'R', x = 54, dx = 10, dy = -52, rot = -12, exitX = 66},
+        {ch = 'P', x = 162, dx = 28, dy = 48, rot = 15, exitX = 194}
+    }
+
+    local letterNodes = {}
+    for idx, spec in ipairs(letterSpecs) do
+        local assetId = assets[spec.ch]
+        local slot = create('Frame', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Name = '#slot-' .. spec.ch,
+            Position = UDim2.new(0.5, spec.x + spec.dx, 0.42, spec.dy),
+            Rotation = spec.rot,
+            Size = UDim2.fromOffset(148, 148),
+            ZIndex = 6018 + idx
+        }, stage)
+        local lScale = create('UIScale', {Name = '#lscale', Scale = 1.72}, slot)
+
+        local mainObj
+        local echoObj
+        local echoScale
+        if (assetId and assetId ~= '') then
+            echoObj = create('ImageLabel', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Image = assetId,
+                ImageColor3 = electricCyan,
+                ImageTransparency = 1,
+                Name = '#echo',
+                Position = UDim2.fromScale(0.5, 0.5),
+                ScaleType = Enum.ScaleType.Fit,
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 6016
+            }, slot)
+            echoScale = create('UIScale', {Name = '#escale', Scale = 1}, echoObj)
+
+            mainObj = create('ImageLabel', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Image = assetId,
+                ImageTransparency = 1,
+                Name = '#letter',
+                Position = UDim2.fromScale(0.5, 0.5),
+                ScaleType = Enum.ScaleType.Fit,
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 6020 + idx
+            }, slot)
+        else
+            mainObj = create('TextLabel', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#letter',
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromScale(1, 1),
+                Text = spec.ch,
+                TextColor3 = Color3.fromRGB(238, 244, 255),
+                TextSize = 86,
+                TextStrokeColor3 = electricBlue,
+                TextStrokeTransparency = 1,
+                TextTransparency = 1,
+                ZIndex = 6020 + idx
+            }, slot)
+        end
+
+        letterNodes[idx] = {
+            spec = spec,
+            slot = slot,
+            lScale = lScale,
+            main = mainObj,
+            echo = echoObj,
+            echoScale = echoScale,
+            isImage = (assetId and assetId ~= '')
+        }
+    end
+
+    local underline = create('Frame', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        Name = '#underline',
+        Position = UDim2.new(0.5, 0, 0.42, 76),
+        Size = UDim2.fromOffset(0, 2),
+        ZIndex = 6024
+    }, stage)
+    create('UIGradient', {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, electricBlue),
+            ColorSequenceKeypoint.new(0.5, electricCyan),
+            ColorSequenceKeypoint.new(1, theme.Primary)
+        })
+    }, underline)
+
+    local subLbl = create('TextLabel', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundTransparency = 1,
+        Font = currentFont,
+        Name = '#subtitle',
+        Position = UDim2.new(0.5, 0, 0.42, 96),
+        Size = UDim2.fromOffset(420, 20),
+        Text = 'L A R P W A R E   //   S Y S T E M   O N L I N E',
+        TextColor3 = Color3.fromRGB(214, 226, 246),
+        TextSize = 11,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
+        TextStrokeTransparency = 1,
+        TextTransparency = 1,
+        ZIndex = 6024
+    }, stage)
+
+    local skipHint = create('TextLabel', {
+        Active = false,
+        AnchorPoint = Vector2.new(0.5, 1),
+        BackgroundTransparency = 1,
+        Font = currentFont,
+        Name = '#skip',
+        Position = UDim2.new(0.5, 0, 1, -38),
+        Size = UDim2.fromOffset(220, 16),
+        Text = 'click or press any key to skip',
+        TextColor3 = Color3.fromRGB(130, 144, 172),
+        TextSize = 10,
+        TextTransparency = 1,
+        ZIndex = 6024
+    }, introGui)
+
+    local skipped = false
+    local skipCon
+    local function requestSkip()
+        skipped = true
+    end
+    bg.MouseButton1Click:Connect(requestSkip)
+    skipCon = inputService.InputBegan:Connect(function(io)
+        if (io.UserInputType == Enum.UserInputType.Keyboard) then
+            skipped = true
+        end
+    end)
+
+    local function sleepInterruptible(dur)
+        local t0 = os.clock()
+        while (not skipped and (os.clock() - t0) < dur) do
+            task.wait(0.015)
+        end
+    end
+
+    tween(bg, {BackgroundTransparency = 0.14}, 0.28, 1)
+    tween(topBar, {Position = UDim2.fromOffset(0, 0)}, 0.30, 1)
+    tween(botBar, {Position = UDim2.new(0, 0, 1, 0)}, 0.30, 1)
+    if (blur) then
+        tween(blur, {Size = 16}, 0.32, 1)
+    end
+    tween(auraOuter, {ImageTransparency = 0.62, Size = UDim2.fromOffset(720, 300)}, 0.40, 1)
+    tween(horizon, {Size = UDim2.fromOffset(540, 1)}, 0.32, 5)
+    tween(skipHint, {TextTransparency = 0.45}, 0.40, 1)
+    sleepInterruptible(0.20)
+
+    for idx, node in ipairs(letterNodes) do
+        if (skipped) then break end
+        local spec = node.spec
+        tween(node.slot, {Position = UDim2.new(0.5, spec.x, 0.42, 0), Rotation = 0}, 0.34, 5)
+        if (node.isImage) then
+            tween(node.main, {ImageTransparency = 0}, 0.20, 1)
+        else
+            tween(node.main, {TextTransparency = 0, TextStrokeTransparency = 0.65}, 0.20, 1)
+        end
+        tween(node.lScale, {Scale = 0.94}, 0.22, 5)
+
+        task.delay(0.16, function()
+            if (skipped or not introGui.Parent) then return end
+            tween(node.lScale, {Scale = 1.0}, 0.24, 4)
+            if (node.echo and node.echoScale) then
+                node.echo.ImageTransparency = 0.36
+                node.echoScale.Scale = 1.0
+                tween(node.echo, {ImageTransparency = 1}, 0.42, 1)
+                tween(node.echoScale, {Scale = 1.48}, 0.42, 1)
+            end
+            auraCore.ImageTransparency = 0.56
+            tween(auraCore, {ImageTransparency = 0.84}, 0.34, 1)
+            local punchY = (idx % 2 == 0) and 3 or -3
+            stage.Position = UDim2.new(0.5, 0, 0.48, punchY)
+            tween(stage, {Position = UDim2.fromScale(0.5, 0.48)}, 0.18, 1)
+        end)
+
+        sleepInterruptible(0.095)
+    end
+
+    if (not skipped) then
+        sleepInterruptible(0.24)
+    end
+
+    if (not skipped) then
+        glintBar.BackgroundTransparency = 0
+        glintBar.Position = UDim2.new(0, -140, 0.5, 0)
+        tween(glintBar, {Position = UDim2.new(1, 140, 0.5, 0)}, 0.46, 5)
+        tween(underline, {Size = UDim2.fromOffset(410, 2)}, 0.36, 5)
+        tween(subLbl, {Position = UDim2.new(0.5, 0, 0.42, 86), TextTransparency = 0.12, TextStrokeTransparency = 0.82}, 0.34, 1)
+        tween(stageScale, {Scale = 1.045}, 0.72, 2)
+        tween(auraOuter, {ImageTransparency = 0.50}, 0.30, 1)
+        sleepInterruptible(0.68)
+    end
+
+    if (skipCon) then
+        skipCon:Disconnect()
+        skipCon = nil
+    end
+
+    local exitDur = skipped and 0.18 or 0.42
+    tween(stageScale, {Scale = 1.16}, exitDur, 1)
+    for _, node in ipairs(letterNodes) do
+        tween(node.slot, {Position = UDim2.new(0.5, node.spec.exitX, 0.42, 0)}, exitDur, 1)
+        if (node.isImage) then
+            tween(node.main, {ImageTransparency = 1}, exitDur * 0.85, 1)
+        else
+            tween(node.main, {TextTransparency = 1, TextStrokeTransparency = 1}, exitDur * 0.85, 1)
+        end
+    end
+    tween(underline, {Size = UDim2.fromOffset(0, 2), BackgroundTransparency = 1}, exitDur * 0.8, 1)
+    tween(horizon, {Size = UDim2.fromOffset(0, 1), BackgroundTransparency = 1}, exitDur * 0.8, 1)
+    tween(subLbl, {TextTransparency = 1, TextStrokeTransparency = 1}, exitDur * 0.7, 1)
+    tween(skipHint, {TextTransparency = 1}, exitDur * 0.5, 1)
+    tween(auraOuter, {ImageTransparency = 1}, exitDur * 0.9, 1)
+    tween(auraCore, {ImageTransparency = 1}, exitDur * 0.8, 1)
+    tween(topBar, {Position = UDim2.fromOffset(0, -28)}, exitDur, 1)
+    tween(botBar, {Position = UDim2.new(0, 0, 1, 28)}, exitDur, 1)
+    tween(bg, {BackgroundTransparency = 1}, exitDur, 1)
+    if (blur) then
+        tween(blur, {Size = 0}, exitDur, 1)
+    end
+
+    task.wait(exitDur + 0.03)
+    if (blur and blur.Parent) then
+        pcall(function() blur:Destroy() end)
+    end
+    if (activeIntroBlur == blur) then
+        activeIntroBlur = nil
+    end
+    if (introGui and introGui.Parent) then
+        pcall(function() introGui:Destroy() end)
+    end
+    if (activeIntroGui == introGui) then
+        activeIntroGui = nil
+    end
+end
+
+if (enableIntro) then
+    pcall(playLarpIntro)
+end
+
 do
     uiScreen.OnTopOfCoreBlur = true
     uiScreen.DisplayOrder = 9e9
@@ -9914,6 +10416,14 @@ do
             pcall(function() uiScreen:Destroy() end)
             uiScreen = nil
         end
+        if (activeIntroBlur) then
+            pcall(function() activeIntroBlur:Destroy() end)
+            activeIntroBlur = nil
+        end
+        if (activeIntroGui) then
+            pcall(function() activeIntroGui:Destroy() end)
+            activeIntroGui = nil
+        end
 
         if (ui.binds.onDestroy) then
             pcall(ui.binds.onDestroy)
@@ -10252,6 +10762,12 @@ do
     ui.setSmoothDragging = function(enabled)
         animSpeed = (enabled and true or false) and 1e-12 or 0
         return enabled and true or false
+    end
+
+    ui.playIntro = function()
+        task.spawn(function()
+            pcall(playLarpIntro)
+        end)
     end
 
     ui.resetTheme = function()

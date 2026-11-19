@@ -704,11 +704,13 @@ do
             })
         end))
 
-        cfgSec:addButton({
-            text = 'unload & terminate ui',
-            style = 'large',
-            tooltip = 'Cleanly terminates all connections, toggles, keybinds, and removes the UI'
+        cfgSec:addDualButton({
+            left = 'replay intro',
+            right = 'unload ui',
+            tooltip = 'Replay the L A R P launch intro or cleanly terminate the UI'
         }, function()
+            ui.playIntro()
+        end, function()
             ui.terminate()
         end)
 
