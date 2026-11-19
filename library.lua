@@ -2070,6 +2070,31 @@ do
                 ZIndex = 30
             }, mainFrame)
 
+            create('Frame', {
+                Active = false,
+                BackgroundColor3 = theme.Window2,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Name = '#tab-veil',
+                Position = UDim2.fromScale(0, 0),
+                Size = UDim2.fromScale(1, 1),
+                Visible = false,
+                ZIndex = 43
+            }, pageRegion)
+
+            local tabSweep = create('Frame', {
+                Active = false,
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Name = '#tab-sweep',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(0, 0, 0, 2),
+                Visible = false,
+                ZIndex = 46
+            }, pageRegion)
+            makeGradient(tabSweep, theme.Primary, theme.Secondary, 0)
+
             local easterEgg = create('Frame', {
                 Active = false,
                 BackgroundColor3 = theme.Window2,
@@ -4856,26 +4881,104 @@ do
             if (self.window and self.window.setEasterEgg) then
                 self.window:setEasterEgg(false)
             end
-            for _, m in ipairs(self.window.menus) do
-                tween(m.instances.menuFrame, {Position = UDim2.fromScale(0, m.id - self.id)}, 0.35, 1)
+            if (self.selected and self.window._activeMenu == self) then
+                return self
+            end
+
+            local win = self.window
+            local prev = win._activeMenu
+            win._activeMenu = self
+            win._tabAnimId = (win._tabAnimId or 0) + 1
+            local animId = win._tabAnimId
+            local dir = (prev and self.id < prev.id) and -1 or 1
+
+            for _, m in ipairs(win.menus) do
                 if (m ~= self) then
                     m:deselect()
+                    if (m ~= prev and m.instances and m.instances.menuFrame) then
+                        m.instances.menuFrame.Visible = false
+                        m.instances.menuFrame.Position = UDim2.fromScale(0, 0)
+                    end
                 end
+            end
+
+            local mf = self.instances.menuFrame
+            local lr = self.instances.leftRegion
+            local rr = self.instances.rightRegion
+            local cScale = mf['#content-scale']
+            mf.Visible = true
+
+            if (prev and prev ~= self and prev.instances and prev.instances.menuFrame) then
+                local pmf = prev.instances.menuFrame
+                tween(pmf, {Position = UDim2.fromOffset(0, -dir * 16)}, 0.16, 1)
+                task.delay(0.16, function()
+                    if (not prev.selected and pmf and pmf.Parent) then
+                        pmf.Visible = false
+                        pmf.Position = UDim2.fromScale(0, 0)
+                    end
+                end)
+
+                mf.Position = UDim2.fromOffset(0, dir * 24)
+                cScale.Scale = currentScale * 0.972
+                lr.Position = UDim2.fromOffset(0, dir * 10)
+                rr.Position = UDim2.new(0.5, 0, 0, dir * 18)
+
+                tween(mf, {Position = UDim2.fromScale(0, 0)}, 0.30, 1)
+                tween(cScale, {Scale = currentScale}, 0.30, 1)
+                tween(lr, {Position = UDim2.fromOffset(0, 0)}, 0.28, 1)
+                tween(rr, {Position = UDim2.fromScale(0.5, 0)}, 0.35, 1)
+
+                local pr = win.instances and win.instances.pageRegion
+                if (pr) then
+                    local veil = pr:FindFirstChild('#tab-veil')
+                    if (veil) then
+                        veil.BackgroundColor3 = theme.Window2
+                        veil.BackgroundTransparency = 0.28
+                        veil.Visible = true
+                        tween(veil, {BackgroundTransparency = 1}, 0.26, 1)
+                        task.delay(0.27, function()
+                            if (win._tabAnimId == animId and veil and veil.Parent) then
+                                veil.Visible = false
+                            end
+                        end)
+                    end
+                    local sweep = pr:FindFirstChild('#tab-sweep')
+                    if (sweep) then
+                        sweep.Size = UDim2.new(0, 0, 0, 2)
+                        sweep.BackgroundTransparency = 0
+                        sweep.Visible = true
+                        tween(sweep, {Size = UDim2.new(1, 0, 0, 2)}, 0.24, 1)
+                        tween(sweep, {BackgroundTransparency = 1}, 0.34, 2)
+                        task.delay(0.35, function()
+                            if (win._tabAnimId == animId and sweep and sweep.Parent) then
+                                sweep.Visible = false
+                            end
+                        end)
+                    end
+                end
+            else
+                mf.Position = UDim2.fromScale(0, 0)
+                cScale.Scale = currentScale
+                lr.Position = UDim2.fromOffset(0, 0)
+                rr.Position = UDim2.fromScale(0.5, 0)
             end
 
             self.selected = true
             local ps = self.instances.pageSelector
             local lbl = ps['#label']
+            local ind = ps['#indicator']
+            ind.Size = UDim2.new(0, 3, 0, 2)
             tween(ps, {
                 BackgroundColor3 = self.selectorFocused and theme.Button4 or theme.Button3,
                 BackgroundTransparency = 0.15
             }, 0.2, 1)
             tween(ps['#active-bg'], {BackgroundColor3 = theme.Primary, BackgroundTransparency = 0}, 0.22, 1)
             tween(ps['#stroke'], {Color = theme.StrokeHover, Transparency = 0}, 0.2, 1)
-            tween(ps['#indicator'], {BackgroundTransparency = 0, Size = UDim2.new(0, 3, 0, 18)}, 0.24, 1)
+            tween(ind, {BackgroundTransparency = 0, Size = UDim2.new(0, 3, 0, 18)}, 0.26, 1)
             tween(ps['#active-dot'], {BackgroundColor3 = theme.Primary, BackgroundTransparency = 0}, 0.22, 1)
             tween(lbl, {TextColor3 = theme.TextPrimary, Position = UDim2.fromOffset(31, 0)}, 0.2, 1)
             setTabGlyphColor(ps['#icon-wrap'], theme.Primary, 0.2)
+            return self
         end
 
         menu.deselect = function(self)
@@ -4974,7 +5077,8 @@ do
             end)
             menuTab['#label'].Text = s_text
             makeTabGlyph(menuTab['#icon-wrap'], settings.icon or s_text, 54)
-            menuFrame.Position = UDim2.fromScale(0, m.id - 1)
+            menuFrame.Position = UDim2.fromScale(0, 0)
+            menuFrame.Visible = (m.id == 1)
 
             menuTab.Parent = self.instances.tabMenu
             menuFrame.Parent = self.instances.pageRegion
