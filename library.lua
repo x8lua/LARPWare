@@ -1189,8 +1189,17 @@ do
 end
 
 local uiScreen = Instance.new('ScreenGui')
+local hudScreen = Instance.new('ScreenGui')
 local notifContainer
 local notifScale
+local nestedScrolls = {}
+
+local function registerNestedScroll(sf)
+    if (sf) then
+        table.insert(nestedScrolls, sf)
+    end
+    return sf
+end
 
 local introAssetMap = {}
 local introAssetsReady = false
@@ -1616,6 +1625,14 @@ do
     uiScreen:SetAttribute('LARPWareInstance', true)
     uiScreen.Parent = targetParent
 
+    hudScreen.OnTopOfCoreBlur = true
+    hudScreen.DisplayOrder = 100100
+    hudScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    hudScreen.ResetOnSpawn = false
+    hudScreen.Name = randomGuiName()
+    hudScreen:SetAttribute('LARPWareInstance', true)
+    hudScreen.Parent = targetParent
+
     notifContainer = create('Frame', {
         Active = false,
         AnchorPoint = Vector2.new(1, 1),
@@ -1624,7 +1641,7 @@ do
         Position = UDim2.new(1, -24, 1, -24),
         Size = UDim2.fromOffset(220, 1000),
         ZIndex = 2900
-    }, uiScreen)
+    }, hudScreen)
 
     notifScale = create('UIScale', {
         Name = '#scale',
@@ -2238,14 +2255,26 @@ do
                 end
 
                 main.Visible = true
+                local lastTx, lastTy
                 tooltip.update = renderService.RenderStepped:Connect(function()
+                    if (not main or not main.Parent or not main.Visible) then
+                        if (tooltip.update) then
+                            tooltip.update:Disconnect()
+                            tooltip.update = nil
+                        end
+                        return
+                    end
                     local mpos = inputService:GetMouseLocation()
                     local inset = guiService:GetGuiInset()
                     local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or guiService:GetScreenResolution()
                     local sz = main.AbsoluteSize
                     local x = math.clamp(mpos.X + 14, 4, math.max(4, vp.X - sz.X - 6))
                     local y = math.clamp(mpos.Y - inset.Y + 14, 4, math.max(4, vp.Y - inset.Y - sz.Y - 6))
-                    main.Position = UDim2.fromOffset(x, y)
+                    if (x ~= lastTx or y ~= lastTy) then
+                        lastTx = x
+                        lastTy = y
+                        main.Position = UDim2.fromOffset(x, y)
+                    end
                 end)
             end
             return self
@@ -3385,6 +3414,9 @@ do
             if (self.minimized) then
                 self.settingsOpen = false
             end
+            if (self.settingsOpen and self._buildPopoverFonts) then
+                self._buildPopoverFonts()
+            end
             if (self.settingsOpen and self.searchOpen) then
                 self:toggleSearch(false)
             end
@@ -3557,10 +3589,34 @@ do
             return self
         end
 
+        local function syncUiScreenEnabled()
+            if (not uiScreen or not uiScreen.Parent) then return end
+            local anyVis = false
+            for _, w in ipairs(ui.windows) do
+                if (w.instances and w.instances.mainFrame and w.instances.mainFrame.Visible) then
+                    anyVis = true
+                    break
+                end
+            end
+            uiScreen.Enabled = anyVis
+            if (not anyVis) then
+                tooltip.showing = false
+                tooltip.handle = nil
+                if (tooltip.update) then
+                    tooltip.update:Disconnect()
+                    tooltip.update = nil
+                end
+                if (tooltip.instances and tooltip.instances.main) then
+                    tooltip.instances.main.Visible = false
+                end
+            end
+        end
+
         window.setVisible = function(self, state)
             local mf = self.instances and self.instances.mainFrame
             if (not mf or not mf.Parent) then return self end
             mf.Visible = state and true or false
+            syncUiScreenEnabled()
             if (ui.syncMobileButtonState) then
                 ui.syncMobileButtonState()
             end
@@ -3571,6 +3627,7 @@ do
             local mf = self.instances and self.instances.mainFrame
             if (not mf or not mf.Parent) then return self end
             mf.Visible = not mf.Visible
+            syncUiScreenEnabled()
             if (ui.syncMobileButtonState) then
                 ui.syncMobileButtonState()
             end
@@ -4123,6 +4180,10 @@ do
             insts.sideBar = insts.mainFrame['#sidebar']
             insts.sideFooter = insts.sideBar['#sidebar-footer']
             insts.tabMenu = insts.sideBar['#menu-clip']['#menu']
+            registerNestedScroll(insts.tabMenu)
+            if (insts.searchResults and insts.searchResults:FindFirstChild('#list')) then
+                registerNestedScroll(insts.searchResults['#list'])
+            end
             insts.tabButtons = insts.tabMenu['#tab-buttons']
             insts.activePill = insts.tabMenu['#active-pill']
             insts.tabMenu['#content-scale'].Scale = currentScale
@@ -4169,76 +4230,95 @@ do
                 local scaleFill = scaleTrack['#fill']
 
                 local popFontBtns = {}
-                for idx, fk in ipairs(fontOrder) do
-                    local disp = fontDisplayNames[fk] or fk
-                    local btn = create('TextButton', {
-                        AutoButtonColor = false,
-                        BackgroundColor3 = theme.Window3,
-                        BackgroundTransparency = 1,
-                        BorderSizePixel = 0,
-                        Font = fontMap[fk],
-                        LayoutOrder = idx,
-                        Name = '#fopt-' .. fk,
-                        Size = UDim2.new(1, 0, 0, 19),
-                        Text = disp,
-                        TextColor3 = theme.TextDim,
-                        TextSize = 11,
-                        TextStrokeColor3 = theme.TextStroke,
-                        TextStrokeTransparency = 0.85,
-                        TextTruncate = Enum.TextTruncate.AtEnd,
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        ZIndex = 84
-                    }, fList)
-                    makeCorner(btn, cornerPx)
-                    create('UIPadding', {PaddingLeft = UDim.new(0, 8)}, btn)
-                    local ind = create('Frame', {
-                        AnchorPoint = Vector2.new(0, 0.5),
-                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                        BackgroundTransparency = 1,
-                        BorderSizePixel = 0,
-                        Name = '#ind',
-                        Position = UDim2.new(0, -8, 0.5, 0),
-                        Size = UDim2.new(0, 2, 0, 11),
-                        ZIndex = 85
-                    }, btn)
-                    makeGradient(ind, theme.Primary, theme.Secondary, 90)
+                local popFontsBuilt = false
+                local activePopFontKey = nil
 
-                    btn.MouseButton1Click:Connect(function()
-                        ui.setFont(fk)
-                    end)
-                    btn.MouseEnter:Connect(function()
-                        if (currentFontKey ~= fk) then
-                            tween(btn, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0, TextColor3 = theme.TextPrimary}, 0.12, 1)
-                        end
-                    end)
-                    btn.MouseLeave:Connect(function()
-                        if (currentFontKey ~= fk) then
-                            tween(btn, {BackgroundTransparency = 1, TextColor3 = theme.TextDim}, 0.12, 1)
-                        end
-                    end)
-                    popFontBtns[fk] = btn
+                local function setPopBtnState(fk, active)
+                    local btn = popFontBtns[fk]
+                    if (not btn or not btn.Parent) then return end
+                    btn.BackgroundColor3 = active and theme.Button3 or theme.Window3
+                    btn.BackgroundTransparency = active and 0 or 1
+                    btn.TextColor3 = active and theme.TextPrimary or theme.TextDim
+                    btn['#ind'].BackgroundTransparency = active and 0 or 1
+                end
+
+                local function syncPopoverFont(fKey)
+                    fontActiveLbl.Text = '.' .. tostring(fKey)
+                    if (not popFontsBuilt) then
+                        activePopFontKey = fKey
+                        return
+                    end
+                    if (activePopFontKey and activePopFontKey ~= fKey) then
+                        setPopBtnState(activePopFontKey, false)
+                    end
+                    activePopFontKey = fKey
+                    setPopBtnState(fKey, true)
+                end
+
+                new._buildPopoverFonts = function()
+                    if (popFontsBuilt) then return end
+                    popFontsBuilt = true
+                    registerNestedScroll(fList)
+                    for idx, fk in ipairs(fontOrder) do
+                        local disp = fontDisplayNames[fk] or fk
+                        local isAct = (fk == currentFontKey)
+                        local btn = create('TextButton', {
+                            AutoButtonColor = false,
+                            BackgroundColor3 = isAct and theme.Button3 or theme.Window3,
+                            BackgroundTransparency = isAct and 0 or 1,
+                            BorderSizePixel = 0,
+                            Font = currentFont,
+                            LayoutOrder = idx,
+                            Name = '#fopt-' .. fk,
+                            Size = UDim2.new(1, 0, 0, 19),
+                            Text = disp,
+                            TextColor3 = isAct and theme.TextPrimary or theme.TextDim,
+                            TextSize = 11,
+                            TextTruncate = Enum.TextTruncate.AtEnd,
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            ZIndex = 84
+                        }, fList)
+                        create('UIPadding', {PaddingLeft = UDim.new(0, 8)}, btn)
+                        create('Frame', {
+                            AnchorPoint = Vector2.new(0, 0.5),
+                            BackgroundColor3 = theme.Primary,
+                            BackgroundTransparency = isAct and 0 or 1,
+                            BorderSizePixel = 0,
+                            Name = '#ind',
+                            Position = UDim2.new(0, -8, 0.5, 0),
+                            Size = UDim2.new(0, 2, 0, 11),
+                            ZIndex = 85
+                        }, btn)
+
+                        btn.MouseButton1Click:Connect(function()
+                            ui.setFont(fk)
+                        end)
+                        btn.MouseEnter:Connect(function()
+                            if (currentFontKey ~= fk) then
+                                btn.BackgroundColor3 = theme.Button2
+                                btn.BackgroundTransparency = 0
+                                btn.TextColor3 = theme.TextPrimary
+                            end
+                        end)
+                        btn.MouseLeave:Connect(function()
+                            if (currentFontKey ~= fk) then
+                                btn.BackgroundTransparency = 1
+                                btn.TextColor3 = theme.TextDim
+                            end
+                        end)
+                        popFontBtns[fk] = btn
+                    end
+                    activePopFontKey = currentFontKey
                 end
 
                 fSearch:GetPropertyChangedSignal('Text'):Connect(function()
+                    if (not popFontsBuilt) then new._buildPopoverFonts() end
                     local q = fSearch.Text:lower():gsub('^%.', '')
                     for fk, btn in pairs(popFontBtns) do
                         local disp = (fontDisplayNames[fk] or fk):lower()
                         btn.Visible = (q == '' or disp:find(q, 1, true) ~= nil or fk:find(q, 1, true) ~= nil)
                     end
                 end)
-
-                local function syncPopoverFont(fKey)
-                    fontActiveLbl.Text = '.' .. tostring(fKey)
-                    for fk, btn in pairs(popFontBtns) do
-                        local active = (fk == fKey)
-                        tween(btn, {
-                            BackgroundColor3 = active and theme.Button3 or theme.Window3,
-                            BackgroundTransparency = active and 0 or 1,
-                            TextColor3 = active and theme.TextPrimary or theme.TextDim
-                        }, 0.14, 1)
-                        tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.14, 1)
-                    end
-                end
 
                 local minS, maxS, stepS = 0.5, 2.0, 0.05
                 local function syncPopoverScale(sc)
@@ -4606,13 +4686,12 @@ do
                         local checkFrame = activeMenu and activeMenu.instances.menuFrame
                         if (not checkFrame) then return end
 
-                        if (uiScreen) then
-                            for _, desc in ipairs(uiScreen:GetDescendants()) do
-                                if (desc:IsA('ScrollingFrame') and desc ~= checkFrame and desc.ScrollingEnabled) then
-                                    if (isVisiblyHovered(desc, mx, my)) then
-                                        return
-                                    end
-                                end
+                        for i = #nestedScrolls, 1, -1 do
+                            local sf = nestedScrolls[i]
+                            if (not sf or not sf.Parent) then
+                                table.remove(nestedScrolls, i)
+                            elseif (sf ~= checkFrame and sf.ScrollingEnabled and isVisiblyHovered(sf, mx, my)) then
+                                return
                             end
                         end
 
@@ -5809,13 +5888,64 @@ do
             if (self.window and self.window.setEasterEgg) then
                 self.window:setEasterEgg(false)
             end
+            if (not self._lazyBuilt) then
+                local function buildLazyControls()
+                    if (self._lazyBuilt) then return end
+                    self._lazyBuilt = true
+                    for _, sec in ipairs(self.sections or {}) do
+                        for _, ctrl in ipairs(sec.controls or {}) do
+                            if (typeof(ctrl._buildFontList) == 'function') then
+                                ctrl._buildFontList()
+                            end
+                        end
+                    end
+                end
+                if (self._isDefaultSettings and #(self.window and self.window.menus or {}) <= 1) then
+                    task.delay(0.25, function()
+                        if (self.selected and not ui._terminated) then
+                            buildLazyControls()
+                        end
+                    end)
+                else
+                    buildLazyControls()
+                end
+            end
             local win = self.window
+            local prev = nil
             for _, m in ipairs(win.menus) do
-                tween(m.instances.menuFrame, {Position = UDim2.fromScale(0, m.id - self.id)}, 0.35, 1)
-                if (m ~= self) then
+                if (m.selected and m ~= self) then
+                    prev = m
+                    break
+                end
+            end
+            win._tabHideId = (win._tabHideId or 0) + 1
+            local hideId = win._tabHideId
+
+            self.instances.menuFrame.Visible = true
+            if (prev and prev.instances and prev.instances.menuFrame) then
+                prev.instances.menuFrame.Visible = true
+            end
+            for _, m in ipairs(win.menus) do
+                local mf = m.instances.menuFrame
+                local targetPos = UDim2.fromScale(0, m.id - self.id)
+                if (m == self or m == prev) then
+                    tween(mf, {Position = targetPos}, 0.35, 1)
+                else
+                    mf.Position = targetPos
+                    mf.Visible = false
+                end
+                if (m ~= self and m.selected) then
                     m:deselect()
                 end
             end
+            task.delay(0.37, function()
+                if (win._tabHideId ~= hideId) then return end
+                for _, m in ipairs(win.menus) do
+                    if (m ~= self and m.instances and m.instances.menuFrame) then
+                        m.instances.menuFrame.Visible = false
+                    end
+                end
+            end)
 
             self.selected = true
             local ps = self.instances.pageSelector
@@ -5939,6 +6069,7 @@ do
             local m = menu:new()
             m.window = self
             m.name = s_text
+            m._isDefaultSettings = settings._isDefaultSettings and true or false
 
             if (self._defaultSettingsMenu and not settings._isDefaultSettings) then
                 local defIdx = table.find(self.menus, self._defaultSettingsMenu)
@@ -5959,7 +6090,7 @@ do
             end)
             menuTab['#label'].Text = s_text
             makeTabGlyph(menuTab['#icon-wrap'], settings.icon or s_text, 54)
-            menuFrame.Visible = true
+            menuFrame.Visible = false
 
             menuTab.Parent = self.instances.tabButtons
             menuFrame.Parent = self.instances.pageRegion
@@ -7296,6 +7427,7 @@ do
             insts.selected = insts.header['#selected']
             insts.chev = insts.header['#chev']
             insts.menu = insts.controlFrame['#menu']
+            registerNestedScroll(insts.menu)
 
             insts.header.MouseEnter:Connect(function()
                 new.focused = true
@@ -7502,80 +7634,106 @@ do
             insts.list = insts.group['#list']
 
             local btns = {}
-            for idx, fk in ipairs(fontOrder) do
-                local disp = fontDisplayNames[fk] or fk
-                local btn = create('TextButton', {
-                    AutoButtonColor = false,
-                    BackgroundColor3 = theme.Window3,
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Font = fontMap[fk],
-                    LayoutOrder = idx,
-                    Name = '#fopt-' .. fk,
-                    Size = UDim2.new(1, 0, 0, 19),
-                    Text = disp,
-                    TextColor3 = theme.TextDim,
-                    TextSize = 11,
-                    TextStrokeColor3 = theme.TextStroke,
-                    TextStrokeTransparency = 0.85,
-                    TextTruncate = Enum.TextTruncate.AtEnd,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    ZIndex = 37
-                }, insts.list)
-                makeCorner(btn, cornerPx)
-                create('UIPadding', {PaddingLeft = UDim.new(0, 8)}, btn)
+            local fontsBuilt = false
+            local activeFontKey = nil
 
-                local ind = create('Frame', {
-                    AnchorPoint = Vector2.new(0, 0.5),
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Name = '#ind',
-                    Position = UDim2.new(0, -8, 0.5, 0),
-                    Size = UDim2.new(0, 2, 0, 11),
-                    ZIndex = 38
-                }, btn)
-                makeGradient(ind, theme.Primary, theme.Secondary, 90)
-
-                btn.MouseButton1Click:Connect(function()
-                    ui.setFont(fk)
-                    new:fireEvent('onFontChange', fk, fontMap[fk])
-                end)
-                btn.MouseEnter:Connect(function()
-                    new:showTooltip()
-                    if (currentFontKey ~= fk) then
-                        tween(btn, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0, TextColor3 = theme.TextPrimary}, 0.12, 1)
-                    end
-                end)
-                btn.MouseLeave:Connect(function()
-                    new:hideTooltip()
-                    if (currentFontKey ~= fk) then
-                        tween(btn, {BackgroundTransparency = 1, TextColor3 = theme.TextDim}, 0.12, 1)
-                    end
-                end)
-                btns[fk] = btn
+            local function setBtnState(fk, active)
+                local btn = btns[fk]
+                if (not btn or not btn.Parent) then return end
+                btn.BackgroundColor3 = active and theme.Button3 or theme.Window3
+                btn.BackgroundTransparency = active and 0 or 1
+                btn.TextColor3 = active and theme.TextPrimary or theme.TextDim
+                btn['#ind'].BackgroundTransparency = active and 0 or 1
             end
 
+            local function sync(fKey)
+                insts.active.Text = '.' .. tostring(fKey)
+                if (not fontsBuilt) then
+                    activeFontKey = fKey
+                    return
+                end
+                if (activeFontKey and activeFontKey ~= fKey) then
+                    setBtnState(activeFontKey, false)
+                end
+                activeFontKey = fKey
+                setBtnState(fKey, true)
+            end
+
+            new._buildFontList = function()
+                if (fontsBuilt) then return end
+                fontsBuilt = true
+                registerNestedScroll(insts.list)
+                for idx, fk in ipairs(fontOrder) do
+                    local disp = fontDisplayNames[fk] or fk
+                    local isAct = (fk == currentFontKey)
+                    local btn = create('TextButton', {
+                        AutoButtonColor = false,
+                        BackgroundColor3 = isAct and theme.Button3 or theme.Window3,
+                        BackgroundTransparency = isAct and 0 or 1,
+                        BorderSizePixel = 0,
+                        Font = currentFont,
+                        LayoutOrder = idx,
+                        Name = '#fopt-' .. fk,
+                        Size = UDim2.new(1, 0, 0, 19),
+                        Text = disp,
+                        TextColor3 = isAct and theme.TextPrimary or theme.TextDim,
+                        TextSize = 11,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        ZIndex = 37
+                    }, insts.list)
+                    create('UIPadding', {PaddingLeft = UDim.new(0, 8)}, btn)
+
+                    create('Frame', {
+                        AnchorPoint = Vector2.new(0, 0.5),
+                        BackgroundColor3 = theme.Primary,
+                        BackgroundTransparency = isAct and 0 or 1,
+                        BorderSizePixel = 0,
+                        Name = '#ind',
+                        Position = UDim2.new(0, -8, 0.5, 0),
+                        Size = UDim2.new(0, 2, 0, 11),
+                        ZIndex = 38
+                    }, btn)
+
+                    btn.MouseButton1Click:Connect(function()
+                        ui.setFont(fk)
+                        new:fireEvent('onFontChange', fk, fontMap[fk])
+                    end)
+                    btn.MouseEnter:Connect(function()
+                        new:showTooltip()
+                        if (currentFontKey ~= fk) then
+                            btn.BackgroundColor3 = theme.Button2
+                            btn.BackgroundTransparency = 0
+                            btn.TextColor3 = theme.TextPrimary
+                        end
+                    end)
+                    btn.MouseLeave:Connect(function()
+                        new:hideTooltip()
+                        if (currentFontKey ~= fk) then
+                            btn.BackgroundTransparency = 1
+                            btn.TextColor3 = theme.TextDim
+                        end
+                    end)
+                    btns[fk] = btn
+                end
+                activeFontKey = currentFontKey
+            end
+
+            insts.search.Focused:Connect(function()
+                new._buildFontList()
+            end)
+            insts.group.InputBegan:Connect(function()
+                new._buildFontList()
+            end)
+
             insts.search:GetPropertyChangedSignal('Text'):Connect(function()
+                new._buildFontList()
                 local q = insts.search.Text:lower():gsub('^%.', '')
                 for fk, btn in pairs(btns) do
                     local disp = (fontDisplayNames[fk] or fk):lower()
                     btn.Visible = (q == '' or disp:find(q, 1, true) ~= nil or fk:find(q, 1, true) ~= nil)
                 end
             end)
-
-            local function sync(fKey)
-                insts.active.Text = '.' .. tostring(fKey)
-                for fk, btn in pairs(btns) do
-                    local active = (fk == fKey)
-                    tween(btn, {
-                        BackgroundColor3 = active and theme.Button3 or theme.Window3,
-                        BackgroundTransparency = active and 0 or 1,
-                        TextColor3 = active and theme.TextPrimary or theme.TextDim
-                    }, 0.14, 1)
-                    tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.14, 1)
-                end
-            end
 
             sync(currentFontKey)
             table.insert(fontListeners, function(fKey)
@@ -9237,6 +9395,7 @@ do
             insts.selected = insts.header['#selected']
             insts.chev = insts.header['#chev']
             insts.menu = insts.controlFrame['#menu']
+            registerNestedScroll(insts.menu)
 
             insts.header.MouseEnter:Connect(function()
                 new.focused = true
@@ -10299,6 +10458,7 @@ do
             insts.searchWrap = insts.box['#search-wrap']
             insts.search = insts.searchWrap['#search']
             insts.list = insts.box['#list']
+            registerNestedScroll(insts.list)
 
             insts.search:GetPropertyChangedSignal('Text'):Connect(function()
                 local q = insts.search.Text:lower()
@@ -10513,9 +10673,6 @@ local function applyFontToTree(root, fontFace)
     local isFontObj = (typeof(fontFace) == 'Font')
     local function maybeApply(inst)
         if (inst:IsA('TextLabel') or inst:IsA('TextButton') or inst:IsA('TextBox')) then
-            if (inst.Name:sub(1, 6) == '#fopt-') then
-                return
-            end
             if (isFontObj) then
                 inst.FontFace = fontFace
             else
@@ -10620,6 +10777,9 @@ do
         if (uiScreen) then
             applyFontToTree(uiScreen, fontEnum)
         end
+        if (hudScreen) then
+            applyFontToTree(hudScreen, fontEnum)
+        end
         if (elemClasses) then
             for _, cls in pairs(elemClasses) do
                 if (typeof(cls) == 'table' and cls.instances) then
@@ -10694,6 +10854,9 @@ do
 
         if (uiScreen) then
             applyTextScaleToTree(uiScreen, currentTextScale)
+        end
+        if (hudScreen) then
+            applyTextScaleToTree(hudScreen, currentTextScale)
         end
         if (elemClasses) then
             for _, cls in pairs(elemClasses) do
@@ -11209,6 +11372,7 @@ do
         table.clear(textScaleListeners)
         table.clear(themeListeners)
         table.clear(easterEggLabels)
+        table.clear(nestedScrolls)
 
         if (elemClasses) then
             for _, v in pairs(elemClasses) do
@@ -11245,6 +11409,10 @@ do
             pcall(function() uiScreen:Destroy() end)
             uiScreen = nil
         end
+        if (hudScreen) then
+            pcall(function() hudScreen:Destroy() end)
+            hudScreen = nil
+        end
 
         if (ui.binds.onDestroy) then
             pcall(ui.binds.onDestroy)
@@ -11266,6 +11434,10 @@ do
             if (uiScreen) then
                 uiScreen:Destroy()
                 uiScreen = nil
+            end
+            if (hudScreen) then
+                hudScreen:Destroy()
+                hudScreen = nil
             end
         end)
 
@@ -11433,7 +11605,7 @@ do
             end
         end
         if (ui.refreshKeybindList) then
-            ui.refreshKeybindList()
+            ui.refreshKeybindList(true)
         end
         if (ui.syncMobileButtonState) then
             ui.syncMobileButtonState()
@@ -11474,6 +11646,9 @@ do
         end
         if (uiScreen) then
             applyThemeToTree(uiScreen)
+        end
+        if (hudScreen) then
+            applyThemeToTree(hudScreen)
         end
         if (elemClasses) then
             for _, cls in pairs(elemClasses) do
@@ -11573,6 +11748,7 @@ do
             end
         end
         updateCorners(uiScreen)
+        updateCorners(hudScreen)
         if (elemClasses) then
             for _, cls in pairs(elemClasses) do
                 if (typeof(cls) == 'table' and cls.instances) then
@@ -11719,7 +11895,7 @@ do
             Size = UDim2.fromOffset(0, 24),
             Visible = false,
             ZIndex = 2600
-        }, uiScreen)
+        }, hudScreen)
         create('UIScale', {Name = '#scale', Scale = initHudScale}, wmFrame)
         makeCorner(wmFrame, cornerPx)
         makeStroke(wmFrame, theme.Stroke, 1)
@@ -11751,11 +11927,13 @@ do
         ui._watermarkFrame = wmFrame
 
         ui.setWatermark = function(text, visible)
-            wmText.Text = tostring(text or 'LARPWare')
-            if (visible ~= nil) then
-                wmFrame.Visible = visible and true or false
-            else
-                wmFrame.Visible = true
+            local nextStr = tostring(text or 'LARPWare')
+            if (wmText.Text ~= nextStr) then
+                wmText.Text = nextStr
+            end
+            local nextVis = (visible ~= nil) and (visible and true or false) or true
+            if (wmFrame.Visible ~= nextVis) then
+                wmFrame.Visible = nextVis
             end
             return wmFrame
         end
@@ -11779,7 +11957,7 @@ do
             Size = UDim2.fromOffset(176, 22),
             Visible = false,
             ZIndex = 2500
-        }, uiScreen)
+        }, hudScreen)
         create('UIScale', {Name = '#scale', Scale = initHudScale}, kbFrame)
         makeCorner(kbFrame, cornerPx)
         makeStroke(kbFrame, theme.Stroke, 1)
@@ -11844,8 +12022,22 @@ do
         makeDraggableHud(kbFrame, kbHeader)
         ui._keybindListFrame = kbFrame
 
-        ui.refreshKeybindList = function()
-            if (not kbFrame or not kbFrame.Parent) then return end
+        local lastKbSig = nil
+        ui.refreshKeybindList = function(force)
+            if (not kbFrame or not kbFrame.Parent or not kbFrame.Visible) then return end
+            local parts = {}
+            for idx, hk in ipairs(ui.hotkeys) do
+                if (hk.hotkey) then
+                    local active = false
+                    if (hk.linkedControl and hk.linkedControl.class == 'toggle') then
+                        active = hk.linkedControl.toggled == true
+                    end
+                    parts[#parts + 1] = tostring(idx) .. ':' .. tostring(hk.name or 'bind') .. ':' .. hk.hotkey.Name .. ':' .. (active and '1' or '0')
+                end
+            end
+            local sig = table.concat(parts, '|')
+            if (not force and sig == lastKbSig) then return end
+            lastKbSig = sig
             for _, child in ipairs(kbBody:GetChildren()) do
                 if (child:IsA('Frame')) then
                     child:Destroy()
@@ -11918,7 +12110,7 @@ do
             Size = UDim2.fromOffset(mbDefaultSize, mbDefaultSize),
             Visible = enableMobileButton,
             ZIndex = 2700
-        }, uiScreen)
+        }, hudScreen)
         local mbScale = create('UIScale', {Name = '#scale', Scale = 1}, mbFrame)
         makeCorner(mbFrame, cornerPx)
         local mbStroke = makeStroke(mbFrame, theme.StrokeHover, 1)
