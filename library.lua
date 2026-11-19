@@ -21,6 +21,7 @@ end
 local currentTextScale = 1
 local currentTransparency = 0
 local enableIntro = true
+local enableMobileButton = true
 local theme
 local rounding
 local cornerPx = 0
@@ -428,6 +429,9 @@ do
         end
         if (settings.intro ~= nil) then
             enableIntro = settings.intro and true or false
+        end
+        if (settings.mobileButton ~= nil) then
+            enableMobileButton = settings.mobileButton and true or false
         end
         if (typeof(theme) == 'string') then
             if (theme == 'cherry') then
@@ -3526,6 +3530,9 @@ do
             local mf = self.instances and self.instances.mainFrame
             if (not mf or not mf.Parent) then return self end
             mf.Visible = state and true or false
+            if (ui.syncMobileButtonState) then
+                ui.syncMobileButtonState()
+            end
             return self
         end
 
@@ -3533,6 +3540,9 @@ do
             local mf = self.instances and self.instances.mainFrame
             if (not mf or not mf.Parent) then return self end
             mf.Visible = not mf.Visible
+            if (ui.syncMobileButtonState) then
+                ui.syncMobileButtonState()
+            end
             return self
         end
         window.__hotkeyFunc = window.toggle
@@ -6214,6 +6224,7 @@ do
 
             local label = create('TextLabel', {
                 BackgroundTransparency = 1,
+                ClipsDescendants = true,
                 Font = currentFont,
                 Name = '#label',
                 RichText = true,
@@ -6223,6 +6234,7 @@ do
                 TextSize = 12,
                 TextStrokeColor3 = theme.TextStroke,
                 TextStrokeTransparency = 0.85,
+                TextTruncate = Enum.TextTruncate.AtEnd,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextYAlignment = Enum.TextYAlignment.Center,
                 ZIndex = 35
@@ -6849,7 +6861,9 @@ do
         local instances = {}
         do
             local controlFrame = create('Frame', {
+                AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
+                ClipsDescendants = true,
                 Name = '#control',
                 Size = UDim2.new(1, 0, 0, 19),
                 ZIndex = 34
@@ -6857,21 +6871,29 @@ do
             instances.controlFrame = controlFrame
 
             local lbl = create('TextLabel', {
+                AutomaticSize = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
                 RichText = true,
-                Size = UDim2.fromScale(1, 1),
+                Size = UDim2.new(1, 0, 0, 19),
                 Text = 'label',
                 TextColor3 = theme.TextPrimary,
                 TextSize = 12,
                 TextStrokeColor3 = theme.TextStroke,
                 TextStrokeTransparency = 0.85,
+                TextWrapped = true,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextYAlignment = Enum.TextYAlignment.Center,
                 ZIndex = 35
             }, controlFrame)
-            create('UIPadding', {Name = '#padding', PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, lbl)
+            create('UIPadding', {
+                Name = '#padding',
+                PaddingLeft = UDim.new(0, 6),
+                PaddingRight = UDim.new(0, 6),
+                PaddingTop = UDim.new(0, 2),
+                PaddingBottom = UDim.new(0, 2)
+            }, lbl)
         end
         label.instances = instances
 
@@ -6919,8 +6941,8 @@ do
             end
             if (s_center) then
                 li.TextXAlignment = Enum.TextXAlignment.Center
-                li['#padding'].PaddingLeft = UDim.new(0, 0)
-                li['#padding'].PaddingRight = UDim.new(0, 0)
+                li['#padding'].PaddingLeft = UDim.new(0, 4)
+                li['#padding'].PaddingRight = UDim.new(0, 4)
             end
             l.instances.controlFrame.Parent = self.instances.controlMenu
             if (settings.tooltip) then
@@ -10788,6 +10810,15 @@ do
             ui.toggleKeybindList(state)
         end)
 
+        local mbVisible = (ui._mobileButton and ui._mobileButton.Visible) and true or false
+        cfgSec:addToggle({
+            text = 'mobile button',
+            state = mbVisible,
+            tooltip = 'Shows a draggable, resizable floating button to open or close the UI'
+        }, function(state)
+            ui.toggleMobileButton(state)
+        end)
+
         cfgSec:addTextbox({
             text = 'watermark text',
             placeholder = 'custom watermark...',
@@ -11133,6 +11164,10 @@ do
             pcall(function() ui._keybindListFrame:Destroy() end)
             ui._keybindListFrame = nil
         end
+        if (ui._mobileButton) then
+            pcall(function() ui._mobileButton:Destroy() end)
+            ui._mobileButton = nil
+        end
         if (uiScreen) then
             pcall(function() uiScreen:Destroy() end)
             uiScreen = nil
@@ -11213,6 +11248,10 @@ do
         if (ui._keybindListFrame) then
             ui._keybindListFrame:Destroy()
             ui._keybindListFrame = nil
+        end
+        if (ui._mobileButton) then
+            ui._mobileButton:Destroy()
+            ui._mobileButton = nil
         end
 
         ui:fireEvent('onDestroy')
@@ -11322,6 +11361,9 @@ do
         end
         if (ui.refreshKeybindList) then
             ui.refreshKeybindList()
+        end
+        if (ui.syncMobileButtonState) then
+            ui.syncMobileButtonState()
         end
     end
 
@@ -11786,6 +11828,285 @@ do
                 ui.refreshKeybindList()
             end
             return kbFrame.Visible
+        end
+
+        local mbFrame = create('Frame', {
+            Active = true,
+            BackgroundColor3 = theme.Window1,
+            BorderSizePixel = 0,
+            Name = '#mobile-toggle',
+            Position = UDim2.new(0, 18, 0.5, -26),
+            Size = UDim2.fromOffset(52, 52),
+            Visible = enableMobileButton,
+            ZIndex = 2700
+        }, uiScreen)
+        local mbScale = create('UIScale', {Name = '#scale', Scale = 1}, mbFrame)
+        makeCorner(mbFrame, cornerPx)
+        local mbStroke = makeStroke(mbFrame, theme.StrokeHover, 1)
+
+        create('ImageLabel', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Image = 'rbxassetid://7331400934',
+            ImageColor3 = Color3.fromRGB(0, 0, 5),
+            ImageTransparency = 0.25,
+            Name = '#shadow',
+            Position = UDim2.fromScale(0.5, 0.5),
+            ScaleType = Enum.ScaleType.Slice,
+            Size = UDim2.new(1, 28, 1, 28),
+            SliceCenter = Rect.new(40, 40, 260, 260),
+            SliceScale = 1,
+            ZIndex = 2698
+        }, mbFrame)
+
+        local mbInner = create('Frame', {
+            Active = false,
+            BackgroundColor3 = theme.Window2,
+            BorderSizePixel = 0,
+            ClipsDescendants = true,
+            Name = '#inner',
+            Position = UDim2.fromOffset(0, 0),
+            Size = UDim2.fromScale(1, 1),
+            ZIndex = 2701
+        }, mbFrame)
+        makeCorner(mbInner, cornerPx)
+        makeGradient(mbInner, Color3.fromRGB(255, 255, 255), Color3.fromRGB(215, 215, 222), 90)
+
+        local mbTrim = create('Frame', {
+            Active = false,
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BorderSizePixel = 0,
+            Name = '#trim',
+            Position = UDim2.fromOffset(0, 0),
+            Size = UDim2.new(1, 0, 0, 2),
+            ZIndex = 2704
+        }, mbInner)
+        makeGradient(mbTrim, theme.Primary, theme.Secondary, 0)
+
+        local mbDot = create('Frame', {
+            Active = false,
+            AnchorPoint = Vector2.new(1, 0),
+            BackgroundColor3 = theme.Primary,
+            BorderSizePixel = 0,
+            Name = '#dot',
+            Position = UDim2.new(1, -5, 0, 6),
+            Size = UDim2.fromOffset(5, 5),
+            ZIndex = 2705
+        }, mbInner)
+        makeCorner(mbDot, 3, true)
+
+        local mbImg = create('ImageLabel', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Image = '',
+            Name = '#logo',
+            Position = UDim2.fromScale(0.5, 0.52),
+            ScaleType = Enum.ScaleType.Fit,
+            Size = UDim2.fromScale(0.64, 0.64),
+            Visible = false,
+            ZIndex = 2703
+        }, mbInner)
+
+        local mbLbl = create('TextLabel', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Font = currentFont,
+            Name = '#label',
+            Position = UDim2.fromScale(0.5, 0.52),
+            Size = UDim2.fromScale(0.76, 0.56),
+            Text = 'L',
+            TextColor3 = theme.TextPrimary,
+            TextScaled = true,
+            TextStrokeColor3 = theme.TextStroke,
+            TextStrokeTransparency = 0.8,
+            ZIndex = 2703
+        }, mbInner)
+
+        local mbResize = create('Frame', {
+            Active = true,
+            AnchorPoint = Vector2.new(1, 1),
+            BackgroundTransparency = 1,
+            Name = '#resize-grip',
+            Position = UDim2.fromScale(1, 1),
+            Size = UDim2.fromOffset(16, 16),
+            ZIndex = 2708
+        }, mbFrame)
+        for idx = 0, 1 do
+            create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = theme.StrokeHover,
+                BorderSizePixel = 0,
+                Name = '#grip' .. idx,
+                Position = UDim2.new(1, -4 - idx * 3, 1, -4 - idx * 3),
+                Rotation = -45,
+                Size = UDim2.fromOffset(4 + idx * 4, 1),
+                ZIndex = 2709
+            }, mbResize)
+        end
+
+        ui._mobileButton = mbFrame
+        local mbTargetWin = nil
+        local mbCustomIcon = false
+
+        task.spawn(function()
+            local assets = loadIntroAssets()
+            if (not mbCustomIcon and assets and assets['L'] and assets['L'] ~= '' and mbImg and mbImg.Parent) then
+                mbImg.Image = assets['L']
+                mbImg.Visible = true
+                mbLbl.Visible = false
+            end
+        end)
+
+        local function getMobileTargetWindow()
+            if (mbTargetWin and mbTargetWin.instances and mbTargetWin.instances.mainFrame and mbTargetWin.instances.mainFrame.Parent) then
+                return mbTargetWin
+            end
+            return windows[1]
+        end
+
+        ui.syncMobileButtonState = function()
+            if (not mbFrame or not mbFrame.Parent) then return end
+            local w = getMobileTargetWindow()
+            local isOpen = w and w.instances and w.instances.mainFrame and w.instances.mainFrame.Visible or false
+            tween(mbDot, {BackgroundColor3 = isOpen and theme.Primary or theme.TextDim}, 0.16, 1)
+            tween(mbStroke, {Color = isOpen and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+        end
+
+        local function isPointerInput(io)
+            return io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.Touch
+        end
+        local function isMoveInput(io)
+            return io.UserInputType == Enum.UserInputType.MouseMovement or io.UserInputType == Enum.UserInputType.Touch
+        end
+
+        local mbResizing = false
+        local mbDragging = false
+
+        mbResize.InputBegan:Connect(function(io)
+            if (not isPointerInput(io)) then return end
+            mbResizing = true
+            local startTouch = Vector2.new(io.Position.X, io.Position.Y)
+            local startSize = Vector2.new(mbFrame.AbsoluteSize.X, mbFrame.AbsoluteSize.Y)
+            tween(mbStroke, {Color = theme.Primary}, 0.14, 1)
+
+            local mCon, eCon
+            mCon = inputService.InputChanged:Connect(function(mio)
+                if (not mbResizing or not isMoveInput(mio)) then return end
+                local delta = Vector2.new(mio.Position.X, mio.Position.Y) - startTouch
+                local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or guiService:GetScreenResolution()
+                local maxW = math.max(44, math.min(160, vp.X - mbFrame.AbsolutePosition.X - 6))
+                local maxH = math.max(44, math.min(160, vp.Y - mbFrame.AbsolutePosition.Y - 6))
+                local nw = math.clamp(math.floor(startSize.X + delta.X + 0.5), 38, maxW)
+                local nh = math.clamp(math.floor(startSize.Y + delta.Y + 0.5), 38, maxH)
+                mbFrame.Size = UDim2.fromOffset(nw, nh)
+            end)
+            eCon = inputService.InputEnded:Connect(function(eio)
+                if (not isPointerInput(eio)) then return end
+                mbResizing = false
+                if (mCon) then mCon:Disconnect(); mCon = nil end
+                if (eCon) then eCon:Disconnect(); eCon = nil end
+                ui.syncMobileButtonState()
+            end)
+            ui.trackConnection(mCon)
+            ui.trackConnection(eCon)
+        end)
+
+        mbFrame.InputBegan:Connect(function(io)
+            if (mbResizing or not isPointerInput(io)) then return end
+            mbDragging = true
+            local startInput = Vector2.new(io.Position.X, io.Position.Y)
+            local startPos = Vector2.new(mbFrame.AbsolutePosition.X, mbFrame.AbsolutePosition.Y)
+            local moved = false
+
+            local mCon, eCon
+            mCon = inputService.InputChanged:Connect(function(mio)
+                if (not mbDragging or mbResizing or not isMoveInput(mio)) then return end
+                local cur = Vector2.new(mio.Position.X, mio.Position.Y)
+                local delta = cur - startInput
+                if (not moved and delta.Magnitude > 6) then
+                    moved = true
+                end
+                if (moved) then
+                    local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or guiService:GetScreenResolution()
+                    local inset = guiService:GetGuiInset()
+                    local sz = mbFrame.AbsoluteSize
+                    local nx = math.clamp(math.floor(startPos.X + delta.X + 0.5), 4, math.max(4, vp.X - sz.X - 4))
+                    local ny = math.clamp(math.floor(startPos.Y + delta.Y + 0.5), 4, math.max(4, vp.Y - inset.Y - sz.Y - 4))
+                    mbFrame.Position = UDim2.fromOffset(nx, ny)
+                end
+            end)
+            eCon = inputService.InputEnded:Connect(function(eio)
+                if (not isPointerInput(eio)) then return end
+                mbDragging = false
+                if (mCon) then mCon:Disconnect(); mCon = nil end
+                if (eCon) then eCon:Disconnect(); eCon = nil end
+                if (not moved and not mbResizing) then
+                    mbScale.Scale = 0.88
+                    tween(mbScale, {Scale = 1}, 0.22, 4)
+                    local w = getMobileTargetWindow()
+                    if (w) then
+                        w:toggle()
+                    end
+                end
+            end)
+            ui.trackConnection(mCon)
+            ui.trackConnection(eCon)
+        end)
+
+        ui.toggleMobileButton = function(state)
+            if (state == nil) then
+                mbFrame.Visible = not mbFrame.Visible
+            else
+                mbFrame.Visible = state and true or false
+            end
+            ui.syncMobileButtonState()
+            return mbFrame.Visible
+        end
+
+        ui.setMobileButton = function(opts)
+            if (typeof(opts) ~= 'table') then return mbFrame end
+            if (opts.visible ~= nil) then
+                mbFrame.Visible = opts.visible and true or false
+            end
+            if (opts.size ~= nil) then
+                if (typeof(opts.size) == 'Vector2') then
+                    mbFrame.Size = UDim2.fromOffset(math.clamp(opts.size.X, 38, 160), math.clamp(opts.size.Y, 38, 160))
+                elseif (typeof(opts.size) == 'UDim2') then
+                    mbFrame.Size = opts.size
+                end
+            end
+            if (opts.position ~= nil) then
+                if (typeof(opts.position) == 'Vector2') then
+                    mbFrame.Position = UDim2.fromOffset(opts.position.X, opts.position.Y)
+                elseif (typeof(opts.position) == 'UDim2') then
+                    mbFrame.Position = opts.position
+                end
+            end
+            if (opts.image ~= nil) then
+                mbCustomIcon = true
+                if (opts.image ~= '') then
+                    mbImg.Image = tostring(opts.image)
+                    mbImg.Visible = true
+                    mbLbl.Visible = false
+                else
+                    mbImg.Visible = false
+                    mbLbl.Visible = true
+                end
+            elseif (opts.text ~= nil) then
+                mbCustomIcon = true
+                mbLbl.Text = tostring(opts.text)
+                mbLbl.Visible = true
+                mbImg.Visible = false
+            end
+            if (opts.window ~= nil) then
+                mbTargetWin = opts.window
+            end
+            ui.syncMobileButtonState()
+            return mbFrame
         end
     end
 

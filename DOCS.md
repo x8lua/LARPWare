@@ -33,6 +33,7 @@ local ui = uiLoader({
 | `rounding` | `boolean` | `true` | Enables subtle corner rounding on panels and controls. |
 | `smoothDragging` | `boolean` | `true` | Enables smooth inertia while dragging windows and HUD panels. |
 | `intro` | `boolean` | `true` | Plays the in-window `L A R P` intro animation when the window opens. |
+| `mobileButton` | `boolean` | `true` | Displays the draggable, resizable floating toggle button to open/close the UI on mobile and desktop. |
 | `onCancel` | `function` | `nil` | Optional callback invoked if the user clicks **Cancel** on the duplicate-instance warning modal. If omitted, the duplicate thread yields cleanly without errors. |
 
 ### Hosting & Parenting
@@ -545,6 +546,13 @@ ui.toggleWatermark(true)
 
 ui.toggleKeybindList(true)
 ui.refreshKeybindList()
+
+ui.toggleMobileButton(true)
+ui.setMobileButton({
+    visible = true,
+    size = Vector2.new(52, 52),
+    position = UDim2.new(0, 18, 0.5, -26)
+})
 
 ui.playIntro()
 ```
