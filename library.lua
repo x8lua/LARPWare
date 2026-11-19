@@ -231,7 +231,7 @@ do
     end
 
     local featured = {
-        'inter', 'buildersans', 'buildermono', 'roboto', 'robotomono', 'robotocondensed',
+        'buildermono', 'buildersans', 'inter', 'roboto', 'robotomono', 'robotocondensed',
         'ibmplexsansjp', 'firasans', 'barlow', 'rajdhani', 'titilliumweb', 'ubuntu',
         'arimo', 'jura', 'sarpanch', 'worksans', 'montserrat', 'opensans', 'notosans',
         'lato', 'sonomonospace', 'silkscreen', 'dotgothic16', 'code', 'gotham'
@@ -258,8 +258,8 @@ do
     end
 end
 
-local currentFontKey = fontMap.inter and 'inter' or 'roboto'
-local currentFont = fontMap[currentFontKey] or Enum.Font.Roboto
+local currentFontKey = fontMap.buildermono and 'buildermono' or (fontMap.inter and 'inter' or 'roboto')
+local currentFont = fontMap[currentFontKey] or Enum.Font.RobotoMono
 local currentScale = 1
 
 local function resolveFont(input)
@@ -591,6 +591,463 @@ end
 
 local cornerPx = rounding and 2 or 0
 
+local function getGlobalEnv()
+    if (typeof(getgenv) == 'function') then
+        local ok, g = pcall(getgenv)
+        if (ok and typeof(g) == 'table') then
+            return g
+        end
+    end
+    return _G
+end
+
+local function randomGuiName()
+    local chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    local str = ''
+    for i = 1, 14 do
+        local idx = math.random(1, #chars)
+        str = str .. chars:sub(idx, idx)
+    end
+    return str
+end
+
+local function resolveUiContainer()
+    if (typeof(gethui) == 'function') then
+        local ok, hui = pcall(gethui)
+        if (ok and typeof(hui) == 'Instance') then
+            return hui
+        end
+    end
+    local ok, cg = pcall(function()
+        return game:GetService('CoreGui')
+    end)
+    if (ok and cg) then
+        return cg
+    end
+    return game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
+end
+
+local globalEnv = getGlobalEnv()
+local REG_KEY = '__LARPWareActiveInstance'
+local PROMPT_KEY = '__LARPWareDuplicatePrompt'
+local targetParent = resolveUiContainer()
+
+local function findExistingInstances()
+    local existing = globalEnv[REG_KEY]
+    local orphans = {}
+    if (targetParent) then
+        for _, child in ipairs(targetParent:GetChildren()) do
+            if (child:IsA('ScreenGui') and child:GetAttribute('LARPWareInstance') == true) then
+                table.insert(orphans, child)
+            end
+        end
+    end
+    local hasActive = false
+    if (typeof(existing) == 'table' and existing.active) then
+        if (not existing.screenGui or existing.screenGui.Parent ~= nil) then
+            hasActive = true
+        end
+    end
+    if (not hasActive and #orphans > 0) then
+        hasActive = true
+    end
+    return hasActive, existing, orphans
+end
+
+local function showDuplicateWarning(existing)
+    if (globalEnv[PROMPT_KEY]) then
+        pcall(function()
+            globalEnv[PROMPT_KEY]:Destroy()
+        end)
+        globalEnv[PROMPT_KEY] = nil
+    end
+
+    local modalGui = Instance.new('ScreenGui')
+    modalGui.Name = randomGuiName()
+    modalGui.IgnoreGuiInset = true
+    modalGui.OnTopOfCoreBlur = true
+    modalGui.DisplayOrder = 950000000
+    modalGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    modalGui.ResetOnSpawn = false
+    modalGui.Parent = targetParent
+    globalEnv[PROMPT_KEY] = modalGui
+
+    local backdrop = create('TextButton', {
+        Active = true,
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Name = '#backdrop',
+        Size = UDim2.fromScale(1, 1),
+        Text = '',
+        ZIndex = 5000
+    }, modalGui)
+
+    local card = create('Frame', {
+        Active = true,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = theme.Window1,
+        BorderSizePixel = 0,
+        Name = '#dup-card',
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(378, 198),
+        ZIndex = 5010
+    }, modalGui)
+    makeCorner(card, cornerPx)
+    makeStroke(card, theme.StrokeHover, 1)
+    local cardScale = create('UIScale', {Name = '#scale', Scale = 0.92}, card)
+
+    create('ImageLabel', {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Image = 'rbxassetid://7331400934',
+        ImageColor3 = Color3.fromRGB(0, 0, 5),
+        ImageTransparency = 0.12,
+        Name = '#shadow',
+        Position = UDim2.fromScale(0.5, 0.5),
+        ScaleType = Enum.ScaleType.Slice,
+        Size = UDim2.new(1, 56, 1, 56),
+        SliceCenter = Rect.new(40, 40, 260, 260),
+        SliceScale = 1,
+        ZIndex = 5005
+    }, card)
+
+    local topTrim = create('Frame', {
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0,
+        Name = '#trim',
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(1, 0, 0, 2),
+        ZIndex = 5015
+    }, card)
+    makeGradient(topTrim, theme.Primary, theme.Secondary, 0)
+
+    local header = create('Frame', {
+        BackgroundColor3 = theme.Window3,
+        BorderSizePixel = 0,
+        Name = '#header',
+        Position = UDim2.fromOffset(0, 2),
+        Size = UDim2.new(1, 0, 0, 36),
+        ZIndex = 5012
+    }, card)
+    makeGradient(header, Color3.fromRGB(255, 255, 255), Color3.fromRGB(228, 228, 228), 90)
+    create('Frame', {
+        BackgroundColor3 = theme.Stroke,
+        BorderSizePixel = 0,
+        Name = '#sep',
+        Position = UDim2.new(0, 0, 1, -1),
+        Size = UDim2.new(1, 0, 0, 1),
+        ZIndex = 5013
+    }, header)
+
+    local badge = create('Frame', {
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = theme.Button3,
+        BorderSizePixel = 0,
+        Name = '#badge',
+        Position = UDim2.new(0, 12, 0.5, 0),
+        Size = UDim2.fromOffset(20, 20),
+        ZIndex = 5014
+    }, header)
+    makeCorner(badge, cornerPx)
+    makeStroke(badge, theme.Primary, 1)
+    create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = theme.TextPrimary,
+        BorderSizePixel = 0,
+        Name = '#ex-bar',
+        Position = UDim2.new(0.5, 0, 0, 4),
+        Size = UDim2.fromOffset(2, 7),
+        ZIndex = 5015
+    }, badge)
+    create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = theme.Primary,
+        BorderSizePixel = 0,
+        Name = '#ex-dot',
+        Position = UDim2.new(0.5, 0, 0, 13),
+        Size = UDim2.fromOffset(2, 2),
+        ZIndex = 5015
+    }, badge)
+
+    create('TextLabel', {
+        BackgroundTransparency = 1,
+        Font = currentFont,
+        Name = '#title',
+        Position = UDim2.fromOffset(40, 0),
+        Size = UDim2.new(1, -110, 1, 0),
+        Text = 'DUPLICATE UI DETECTED',
+        TextColor3 = theme.TextPrimary,
+        TextSize = 12,
+        TextStrokeColor3 = theme.TextStroke,
+        TextStrokeTransparency = 0.85,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 5014
+    }, header)
+
+    local pill = create('Frame', {
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundColor3 = theme.Inset1,
+        BorderSizePixel = 0,
+        Name = '#pill',
+        Position = UDim2.new(1, -12, 0.5, 0),
+        Size = UDim2.fromOffset(62, 18),
+        ZIndex = 5014
+    }, header)
+    makeCorner(pill, cornerPx)
+    makeStroke(pill, theme.StrokeHover, 1)
+    local pillDot = create('Frame', {
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = theme.Primary,
+        BorderSizePixel = 0,
+        Name = '#dot',
+        Position = UDim2.new(0, 6, 0.5, 0),
+        Size = UDim2.fromOffset(5, 5),
+        ZIndex = 5015
+    }, pill)
+    makeCorner(pillDot, 3)
+    create('TextLabel', {
+        BackgroundTransparency = 1,
+        Font = currentFont,
+        Name = '#label',
+        Position = UDim2.fromOffset(14, 0),
+        Size = UDim2.new(1, -16, 1, 0),
+        Text = 'ACTIVE',
+        TextColor3 = theme.TextPrimary,
+        TextSize = 9,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 5015
+    }, pill)
+
+    local body = create('Frame', {
+        BackgroundColor3 = theme.Window2,
+        BorderSizePixel = 0,
+        Name = '#body',
+        Position = UDim2.fromOffset(0, 38),
+        Size = UDim2.new(1, 0, 1, -38),
+        ZIndex = 5011
+    }, card)
+
+    create('TextLabel', {
+        BackgroundTransparency = 1,
+        Font = currentFont,
+        Name = '#desc',
+        Position = UDim2.fromOffset(14, 12),
+        Size = UDim2.new(1, -28, 0, 52),
+        Text = 'An active LARPWare instance is already running. Proceeding will terminate all processes, keybinds, toggles, and connections on the previous session.',
+        TextColor3 = theme.TextDim,
+        TextSize = 11,
+        TextStrokeColor3 = theme.TextStroke,
+        TextStrokeTransparency = 0.85,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        ZIndex = 5013
+    }, body)
+
+    local meta = create('Frame', {
+        BackgroundColor3 = theme.Inset1,
+        BorderSizePixel = 0,
+        Name = '#meta',
+        Position = UDim2.fromOffset(14, 72),
+        Size = UDim2.new(1, -28, 0, 26),
+        ZIndex = 5012
+    }, body)
+    makeCorner(meta, cornerPx)
+    makeStroke(meta, theme.Stroke, 1)
+    create('Frame', {
+        BackgroundColor3 = theme.Primary,
+        BorderSizePixel = 0,
+        Name = '#bar',
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(0, 2, 1, 0),
+        ZIndex = 5013
+    }, meta)
+
+    local sessionTitle = (typeof(existing) == 'table' and existing.title) or 'LARPWare'
+    local uptimeStr = 'running'
+    if (typeof(existing) == 'table' and typeof(existing.createdAt) == 'number') then
+        local elapsed = math.max(0, os.time() - existing.createdAt)
+        if (elapsed >= 60) then
+            uptimeStr = string.format('%dm %ds', math.floor(elapsed / 60), elapsed % 60)
+        else
+            uptimeStr = string.format('%ds', elapsed)
+        end
+    end
+    create('TextLabel', {
+        BackgroundTransparency = 1,
+        Font = currentFont,
+        Name = '#info',
+        Position = UDim2.fromOffset(10, 0),
+        Size = UDim2.new(1, -16, 1, 0),
+        Text = 'session: ' .. tostring(sessionTitle) .. '  |  uptime: ' .. uptimeStr,
+        TextColor3 = theme.TextPrimary,
+        TextSize = 10,
+        TextStrokeColor3 = theme.TextStroke,
+        TextStrokeTransparency = 0.85,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 5013
+    }, meta)
+
+    local actions = create('Frame', {
+        BackgroundTransparency = 1,
+        Name = '#actions',
+        Position = UDim2.new(0, 14, 1, -44),
+        Size = UDim2.new(1, -28, 0, 30),
+        ZIndex = 5012
+    }, body)
+
+    local cancelBtn = create('TextButton', {
+        AutoButtonColor = false,
+        BackgroundColor3 = theme.Button1,
+        BorderSizePixel = 0,
+        Font = currentFont,
+        Name = '#cancel',
+        Position = UDim2.fromScale(0, 0),
+        Size = UDim2.new(0.42, -4, 1, 0),
+        Text = 'cancel [esc]',
+        TextColor3 = theme.TextDim,
+        TextSize = 11,
+        TextStrokeColor3 = theme.TextStroke,
+        TextStrokeTransparency = 0.85,
+        ZIndex = 5014
+    }, actions)
+    makeCorner(cancelBtn, cornerPx)
+    makeStroke(cancelBtn, theme.Stroke, 1)
+    makeTopSheen(cancelBtn, 5015)
+
+    local proceedBtn = create('TextButton', {
+        AutoButtonColor = false,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0,
+        Font = currentFont,
+        Name = '#proceed',
+        Position = UDim2.new(0.42, 4, 0, 0),
+        Size = UDim2.new(0.58, -4, 1, 0),
+        Text = 'proceed & terminate [enter]',
+        TextColor3 = theme.TextPrimary,
+        TextSize = 11,
+        TextStrokeColor3 = theme.TextStroke,
+        TextStrokeTransparency = 0.75,
+        ZIndex = 5014
+    }, actions)
+    makeCorner(proceedBtn, cornerPx)
+    makeStroke(proceedBtn, blendColor(theme.Primary, Color3.fromRGB(255, 255, 255), 0.18), 1)
+    local proceedGrad = makeGradient(proceedBtn, theme.Primary, theme.Secondary, 90)
+    makeTopSheen(proceedBtn, 5015)
+
+    tween(backdrop, {BackgroundTransparency = 0.45}, 0.22, 1)
+    tween(cardScale, {Scale = 1}, 0.28, 1)
+
+    local decided = false
+    local decision = false
+    local signal = Instance.new('BindableEvent')
+    local keyCon
+
+    local function finish(result)
+        if (decided) then return end
+        decided = true
+        decision = result
+        if (keyCon) then
+            keyCon:Disconnect()
+            keyCon = nil
+        end
+        tween(backdrop, {BackgroundTransparency = 1}, 0.16, 1)
+        tween(cardScale, {Scale = 0.94}, 0.16, 1)
+        task.delay(0.17, function()
+            if (globalEnv[PROMPT_KEY] == modalGui) then
+                globalEnv[PROMPT_KEY] = nil
+            end
+            if (modalGui and modalGui.Parent) then
+                modalGui:Destroy()
+            end
+            signal:Fire()
+        end)
+    end
+
+    cancelBtn.MouseEnter:Connect(function()
+        tween(cancelBtn, {BackgroundColor3 = theme.Button2, TextColor3 = theme.TextPrimary}, 0.14, 1)
+        tween(cancelBtn['#stroke'], {Color = theme.StrokeHover}, 0.14, 1)
+    end)
+    cancelBtn.MouseLeave:Connect(function()
+        tween(cancelBtn, {BackgroundColor3 = theme.Button1, TextColor3 = theme.TextDim}, 0.14, 1)
+        tween(cancelBtn['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+    end)
+    cancelBtn.MouseButton1Click:Connect(function()
+        finish(false)
+    end)
+
+    proceedBtn.MouseEnter:Connect(function()
+        proceedGrad.Color = ColorSequence.new(
+            blendColor(theme.Primary, Color3.fromRGB(255, 255, 255), 0.14),
+            blendColor(theme.Secondary, Color3.fromRGB(255, 255, 255), 0.12)
+        )
+        tween(proceedBtn['#stroke'], {Color = Color3.fromRGB(255, 190, 195)}, 0.14, 1)
+    end)
+    proceedBtn.MouseLeave:Connect(function()
+        proceedGrad.Color = ColorSequence.new(theme.Primary, theme.Secondary)
+        tween(proceedBtn['#stroke'], {Color = blendColor(theme.Primary, Color3.fromRGB(255, 255, 255), 0.18)}, 0.14, 1)
+    end)
+    proceedBtn.MouseButton1Click:Connect(function()
+        finish(true)
+    end)
+
+    keyCon = inputService.InputBegan:Connect(function(io)
+        if (io.UserInputType == Enum.UserInputType.Keyboard) then
+            if (io.KeyCode == Enum.KeyCode.Escape) then
+                finish(false)
+            elseif (io.KeyCode == Enum.KeyCode.Return or io.KeyCode == Enum.KeyCode.KeypadEnter) then
+                finish(true)
+            end
+        end
+    end)
+
+    signal.Event:Wait()
+    signal:Destroy()
+    return decision
+end
+
+do
+    local hasDup, existing, orphans = findExistingInstances()
+    if (hasDup) then
+        local proceed = showDuplicateWarning(existing)
+        if (not proceed) then
+            if (#args > 0 and typeof(args[1]) == 'table' and typeof(args[1].onCancel) == 'function') then
+                args[1].onCancel()
+                return nil
+            end
+            coroutine.yield()
+            return nil
+        end
+        if (typeof(existing) == 'table' and typeof(existing.terminate) == 'function') then
+            pcall(existing.terminate)
+        end
+        globalEnv[REG_KEY] = nil
+        for _, gui in ipairs(orphans) do
+            if (gui and gui.Parent) then
+                pcall(function()
+                    gui:Destroy()
+                end)
+            end
+        end
+        if (targetParent) then
+            for _, child in ipairs(targetParent:GetChildren()) do
+                if (child:IsA('ScreenGui') and child:GetAttribute('LARPWareInstance') == true) then
+                    pcall(function()
+                        child:Destroy()
+                    end)
+                end
+            end
+        end
+    end
+end
+
 local uiScreen = Instance.new('ScreenGui')
 local notifContainer
 local notifScale
@@ -599,32 +1056,8 @@ do
     uiScreen.DisplayOrder = 9e9
     uiScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
     uiScreen.ResetOnSpawn = false
-
-    local chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    local str = ''
-    for i = 1, 14 do
-        local idx = math.random(1, #chars)
-        str = str .. chars:sub(idx, idx)
-    end
-    uiScreen.Name = str
-
-    local targetParent
-    if (typeof(gethui) == 'function') then
-        local ok, hui = pcall(gethui)
-        if (ok and typeof(hui) == 'Instance') then
-            targetParent = hui
-        end
-    end
-    if (not targetParent) then
-        local ok, cg = pcall(function()
-            return game:GetService('CoreGui')
-        end)
-        if (ok and cg) then
-            targetParent = cg
-        else
-            targetParent = game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
-        end
-    end
+    uiScreen.Name = randomGuiName()
+    uiScreen:SetAttribute('LARPWareInstance', true)
     uiScreen.Parent = targetParent
 
     notifContainer = create('Frame', {
@@ -1167,42 +1600,6 @@ do
             }, mainFrame)
             makeCorner(bg, cornerPx)
 
-            local easterEgg = create('Frame', {
-                Active = false,
-                BackgroundColor3 = theme.Window1,
-                BorderSizePixel = 0,
-                ClipsDescendants = true,
-                Name = '#easter-egg',
-                Position = UDim2.new(0, 0, 1, -68),
-                Size = UDim2.new(1, 0, 0, 68),
-                Visible = false,
-                ZIndex = 2
-            }, mainFrame)
-            makeCorner(easterEgg, cornerPx)
-            makeStroke(easterEgg, theme.Stroke, 1)
-            local eeTrim = create('Frame', {
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BorderSizePixel = 0,
-                Name = '#trim',
-                Position = UDim2.new(0, 0, 1, -2),
-                Size = UDim2.new(1, 0, 0, 2),
-                ZIndex = 3
-            }, easterEgg)
-            makeGradient(eeTrim, theme.Primary, theme.Secondary, 0)
-            create('ImageLabel', {
-                Active = false,
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                Image = easterEggAsset,
-                ImageTransparency = 0,
-                Name = '#logo',
-                Position = UDim2.fromScale(0.5, 0.48),
-                ScaleType = Enum.ScaleType.Fit,
-                Size = UDim2.new(0.62, 0, 0, 44),
-                ZIndex = 3
-            }, easterEgg)
-
             makeStroke(mainFrame, theme.Stroke, 1)
 
             create('ImageLabel', {
@@ -1415,6 +1812,40 @@ do
                 Visible = true,
                 ZIndex = 30
             }, mainFrame)
+
+            local easterEgg = create('Frame', {
+                Active = false,
+                BackgroundColor3 = theme.Window1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#easter-egg',
+                Position = UDim2.new(0, 0, 1, 2),
+                Size = UDim2.new(1, 0, 0, 74),
+                Visible = false,
+                ZIndex = 44
+            }, pageRegion)
+            local eeTrim = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#trim',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, 0, 0, 2),
+                ZIndex = 45
+            }, easterEgg)
+            makeGradient(eeTrim, theme.Primary, theme.Secondary, 0)
+            create('ImageLabel', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Image = easterEggAsset,
+                ImageTransparency = 0,
+                Name = '#logo',
+                Position = UDim2.fromScale(0.5, 0.52),
+                ScaleType = Enum.ScaleType.Fit,
+                Size = UDim2.new(0.68, 0, 0, 46),
+                ZIndex = 45
+            }, easterEgg)
 
             local sideBar = create('Frame', {
                 BackgroundColor3 = theme.Window3,
@@ -2046,11 +2477,26 @@ do
             self.easterEggVisible = nextState
             self._eeAnimId = (self._eeAnimId or 0) + 1
             local animId = self._eeAnimId
+
+            local activeMenu
+            for _, m in ipairs(self.menus) do
+                if (m.selected) then
+                    activeMenu = m
+                    break
+                end
+            end
+
             if (nextState) then
                 ee.Visible = true
-                tween(ee, {Position = UDim2.new(0, 0, 1, 2)}, 0.3, 1)
+                tween(ee, {Position = UDim2.new(0, 0, 1, -74)}, 0.28, 1)
+                if (activeMenu and activeMenu.instances and activeMenu.instances.menuFrame) then
+                    tween(activeMenu.instances.menuFrame, {Position = UDim2.new(0, 0, 0, -74)}, 0.28, 1)
+                end
             else
-                tween(ee, {Position = UDim2.new(0, 0, 1, -68)}, 0.14, 1)
+                tween(ee, {Position = UDim2.new(0, 0, 1, 2)}, 0.14, 1)
+                if (activeMenu and activeMenu.instances and activeMenu.instances.menuFrame) then
+                    tween(activeMenu.instances.menuFrame, {Position = UDim2.fromScale(0, 0)}, 0.14, 1)
+                end
                 task.delay(0.15, function()
                     if (self._eeAnimId == animId and not self.easterEggVisible and ee and ee.Parent) then
                         ee.Visible = false
@@ -2238,7 +2684,8 @@ do
             insts.searchBar = titleBar['#search-bar']
             insts.searchInput = insts.searchBar['#input']
             insts.searchResults = insts.mainFrame['#search-results']
-            insts.easterEgg = insts.mainFrame['#easter-egg']
+            insts.pageRegion = insts.mainFrame['#page-region']
+            insts.easterEgg = insts.pageRegion['#easter-egg']
             insts.easterEggLogo = insts.easterEgg['#logo']
             if (easterEggAsset ~= '') then
                 insts.easterEggLogo.Image = easterEggAsset
@@ -2252,7 +2699,6 @@ do
             insts.tabMenu = insts.sideBar['#menu']
             insts.tabMenu['#content-scale'].Scale = currentScale
             insts.tabMenu.Size = UDim2.fromScale(1 / currentScale, 1 / currentScale)
-            insts.pageRegion = insts.mainFrame['#page-region']
             insts.resizeHandle = insts.mainFrame['#resize-handle']
             insts.settingsPopover = insts.mainFrame['#settings-popover']
 
@@ -2634,6 +3080,7 @@ do
             do
                 local mf = insts.mainFrame
                 new._wheelCon = inputService.InputChanged:Connect(function(io)
+                    if (ui._terminated) then return end
                     if (io.UserInputType ~= Enum.UserInputType.MouseWheel) then return end
                     if (new.minimized or not mf or not mf.Parent) then return end
                     local mPos = inputService:GetMouseLocation()
@@ -2641,12 +3088,16 @@ do
                     local mx, my = mPos.X, mPos.Y - inset.Y
                     local p = mf.AbsolutePosition
                     local sz = mf.AbsoluteSize
-                    local inside = (mx >= p.X and mx <= p.X + sz.X and my >= p.Y and my <= p.Y + sz.Y + 72)
+                    local inside = (mx >= p.X and mx <= p.X + sz.X and my >= p.Y and my <= p.Y + sz.Y)
                     if (not inside) then return end
 
                     if (io.Position.Z > 0) then
                         new:setEasterEgg(false)
                     elseif (io.Position.Z < 0) then
+                        local pr = insts.pageRegion
+                        local overContent = pr and (mx >= pr.AbsolutePosition.X and mx <= pr.AbsolutePosition.X + pr.AbsoluteSize.X
+                            and my >= pr.AbsolutePosition.Y and my <= pr.AbsolutePosition.Y + pr.AbsoluteSize.Y)
+                        if (not overContent) then return end
                         local activeMenu
                         for _, m in ipairs(new.menus) do
                             if (m.selected) then
@@ -2655,10 +3106,6 @@ do
                             end
                         end
                         local checkFrame = activeMenu and activeMenu.instances.menuFrame
-                        local sb = insts.sideBar
-                        if (sb and mx >= sb.AbsolutePosition.X and mx <= sb.AbsolutePosition.X + sb.AbsoluteSize.X) then
-                            checkFrame = insts.tabMenu
-                        end
                         if (checkFrame) then
                             local sc = (currentScale and currentScale > 0) and currentScale or 1
                             local maxY = math.max(0, (checkFrame.AbsoluteCanvasSize.Y - checkFrame.AbsoluteWindowSize.Y) / sc)
@@ -2787,7 +3234,6 @@ do
                     self:toggleSearch(false)
                 end
                 self:setEasterEgg(false)
-                mf['#easter-egg'].Visible = false
                 tween(mf, {Size = UDim2.fromOffset(self.size.X.Offset, 29)}, 0.28, 1)
                 tween(bminIcon['#v'], {BackgroundTransparency = 0, BackgroundColor3 = theme.Primary}, 0.2, 1)
                 tween(bminIcon['#h'], {BackgroundColor3 = theme.Primary}, 0.2, 1)
@@ -8496,6 +8942,9 @@ do
     ui.notifs = {}
     ui.hotkeys = {}
     ui.scriptCns = {}
+    ui._connections = {}
+    ui._threads = {}
+    ui._terminated = false
 
     ui.fonts = fontMap
     ui.Fonts = fontMap
@@ -8503,6 +8952,33 @@ do
 
     local windows = ui.windows
     local notifs = ui.notifs
+
+    local sessionRecord = {
+        active = true,
+        title = 'LARPWare',
+        createdAt = os.time(),
+        screenGui = uiScreen,
+        terminate = nil
+    }
+    globalEnv[REG_KEY] = sessionRecord
+
+    ui.trackConnection = function(con)
+        if (con) then
+            table.insert(ui._connections, con)
+        end
+        return con
+    end
+
+    ui.trackThread = function(th)
+        if (th) then
+            table.insert(ui._threads, th)
+        end
+        return th
+    end
+
+    ui.isTerminated = function()
+        return ui._terminated == true
+    end
 
     ui.getFonts = function()
         local list = {}
@@ -8648,6 +9124,9 @@ do
         win:setPosition(s_position)
         win:setTitle(s_title)
         win.size = s_winSize
+        if (sessionRecord) then
+            sessionRecord.title = tostring(s_title)
+        end
 
         task.spawn(function()
             local insts = win.instances
@@ -8669,7 +9148,137 @@ do
         return win
     end
 
+    ui.terminate = function()
+        if (ui._terminated) then return end
+        ui._terminated = true
+        sessionRecord.active = false
+        if (globalEnv[REG_KEY] == sessionRecord) then
+            globalEnv[REG_KEY] = nil
+        end
+
+        if (ui.binds.onTerminate) then
+            pcall(ui.binds.onTerminate)
+        end
+        if (ui.binds.onPreDestroy) then
+            pcall(ui.binds.onPreDestroy)
+        end
+
+        for _, win in ipairs(windows) do
+            if (win._wheelCon) then
+                pcall(function() win._wheelCon:Disconnect() end)
+                win._wheelCon = nil
+            end
+            for _, m in ipairs(win.menus or {}) do
+                for _, sec in ipairs(m.sections or {}) do
+                    for _, ctrl in ipairs(sec.controls or {}) do
+                        if (ctrl.class == 'picker') then
+                            if (ctrl.chromaCon) then
+                                pcall(function() ctrl.chromaCon:Disconnect() end)
+                                ctrl.chromaCon = nil
+                            end
+                            local pwin = ctrl.pickerWindow
+                            if (pwin) then
+                                if (pwin.chromaCon) then
+                                    pcall(function() pwin.chromaCon:Disconnect() end)
+                                    pwin.chromaCon = nil
+                                end
+                                pcall(function()
+                                    pwin:bindToEvent('close', nil)
+                                    pwin:destroy()
+                                end)
+                            end
+                        elseif (ctrl.class == 'toggle') then
+                            if (ctrl.toggled) then
+                                pcall(function() ctrl:disable() end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if (tooltip.update) then
+            pcall(function() tooltip.update:Disconnect() end)
+            tooltip.update = nil
+        end
+        if (ui.hkCon) then
+            pcall(function() ui.hkCon:Disconnect() end)
+            ui.hkCon = nil
+        end
+        for _, hk in ipairs(ui.hotkeys) do
+            if (hk.inputCon) then
+                pcall(function() hk.inputCon:Disconnect() end)
+                hk.inputCon = nil
+            end
+        end
+        for _, con in ipairs(ui._connections) do
+            pcall(function() con:Disconnect() end)
+        end
+        for _, con in pairs(ui.scriptCns) do
+            pcall(function() con:Disconnect() end)
+        end
+        for _, th in ipairs(ui._threads) do
+            pcall(task.cancel, th)
+        end
+
+        table.clear(ui._connections)
+        table.clear(ui._threads)
+        table.clear(ui.scriptCns)
+        table.clear(ui.hotkeys)
+        table.clear(windows)
+        table.clear(ui.pickerWindows)
+        table.clear(notifs)
+        table.clear(fontListeners)
+        table.clear(scaleListeners)
+        table.clear(textScaleListeners)
+        table.clear(easterEggLabels)
+
+        if (elemClasses) then
+            for _, v in pairs(elemClasses) do
+                if (typeof(v) == 'table' and v.instances) then
+                    for _, inst in pairs(v.instances) do
+                        if (typeof(inst) == 'Instance') then
+                            pcall(function() inst:Destroy() end)
+                        end
+                    end
+                end
+            end
+            elemClasses = nil
+        end
+
+        if (tooltip.instances and tooltip.instances.main) then
+            pcall(function() tooltip.instances.main:Destroy() end)
+        end
+        if (hint.instances and hint.instances.main) then
+            pcall(function() hint.instances.main:Destroy() end)
+        end
+        if (ui._watermarkFrame) then
+            pcall(function() ui._watermarkFrame:Destroy() end)
+            ui._watermarkFrame = nil
+        end
+        if (ui._keybindListFrame) then
+            pcall(function() ui._keybindListFrame:Destroy() end)
+            ui._keybindListFrame = nil
+        end
+        if (uiScreen) then
+            pcall(function() uiScreen:Destroy() end)
+            uiScreen = nil
+        end
+
+        if (ui.binds.onDestroy) then
+            pcall(ui.binds.onDestroy)
+        end
+    end
+    sessionRecord.terminate = ui.terminate
+
     ui.destroy = function(noWindows)
+        if (ui._terminated) then return end
+        ui._terminated = true
+        sessionRecord.active = false
+        if (globalEnv[REG_KEY] == sessionRecord) then
+            globalEnv[REG_KEY] = nil
+        end
+
         ui:fireEvent('onPreDestroy')
 
         task.delay(0.4, function()
@@ -8697,13 +9306,24 @@ do
             end
         end
 
+        if (tooltip.update) then
+            tooltip.update:Disconnect()
+            tooltip.update = nil
+        end
         if (ui.hkCon) then
             ui.hkCon:Disconnect()
+            ui.hkCon = nil
         end
         for _, hk in ipairs(ui.hotkeys) do
             if (hk.inputCon) then
                 hk.inputCon:Disconnect()
             end
+        end
+        for _, con in ipairs(ui._connections) do
+            pcall(function() con:Disconnect() end)
+        end
+        for _, th in ipairs(ui._threads) do
+            pcall(task.cancel, th)
         end
 
         elemClasses = nil
@@ -8736,6 +9356,7 @@ do
     end
 
     ui.notify = function(settings)
+        if (ui._terminated or not elemClasses) then return end
         if (settings == ui) then
             return error('ui.notify is not a namecall function', 2)
         end
@@ -9019,6 +9640,7 @@ do
     do
         local hotkeys = ui.hotkeys
         ui.hkCon = inputService.InputBegan:Connect(function(io, gpe)
+            if (ui._terminated) then return end
             if ((not gpe) and (io.UserInputType == Enum.UserInputType.Keyboard)) then
                 local kc = io.KeyCode
                 for i = 1, #hotkeys do

@@ -3,7 +3,7 @@ local uiLoader = loadstring(game:HttpGet('https://raw.githubusercontent.com/x8lu
 local ui = uiLoader({
     rounding = false,
     smoothDragging = false,
-    font = 'inter',
+    font = 'buildermono',
     scale = 1,
     textScale = 1
 })
