@@ -3157,6 +3157,24 @@ do
             }, backToggle)
             create('UIPadding', {Name = '#padding', PaddingLeft = UDim.new(0, 6)}, label)
 
+            local addons = create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(1, 0.5),
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundTransparency = 1,
+                Name = '#addons',
+                Position = UDim2.new(1, -24, 0.5, 0),
+                Size = UDim2.fromOffset(0, 16),
+                ZIndex = 36
+            }, backToggle)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Horizontal,
+                HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                Padding = UDim.new(0, 4),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                VerticalAlignment = Enum.VerticalAlignment.Center
+            }, addons)
+
             local box = create('Frame', {
                 Active = false,
                 AnchorPoint = Vector2.new(1, 0.5),
@@ -3214,6 +3232,7 @@ do
             applyToggleVisuals(self)
             self:fireEvent(newState and 'onEnable' or 'onDisable')
             self:fireEvent('onToggle', newState)
+            if (ui.refreshKeybindList) then ui.refreshKeybindList() end
             return self
         end
         toggle.__hotkeyFunc = toggle.toggle
@@ -3225,6 +3244,7 @@ do
                 self:fireEvent('onEnable')
                 self:fireEvent('onToggle', true)
             end
+            if (ui.refreshKeybindList) then ui.refreshKeybindList() end
             return self
         end
 
@@ -3235,6 +3255,7 @@ do
                 self:fireEvent('onDisable')
                 self:fireEvent('onToggle', false)
             end
+            if (ui.refreshKeybindList) then ui.refreshKeybindList() end
             return self
         end
 
@@ -3270,6 +3291,7 @@ do
             insts.controlFrame = self.instances.controlFrame:Clone()
             insts.backToggle = insts.controlFrame['#back-toggle']
             insts.label = insts.backToggle['#label']
+            insts.addons = insts.backToggle['#addons']
             insts.toggle = insts.backToggle['#toggle']
 
             for key, signals in pairs(self.signals) do
@@ -3288,6 +3310,138 @@ do
         toggle.getState = function(self) return self.toggled end
         toggle.isEnabled = toggle.getState
         toggle.getValue = toggle.getState
+
+        toggle.addColorPicker = function(self, settings, callback)
+            settings = settings or {}
+            local s_title = settings.text or self.name
+            local s_color = settings.color or Color3.fromRGB(255, 255, 255)
+
+            local p = elemClasses.picker:new()
+            p.section = self.section
+            p.name = s_title
+            if (self.section) then
+                table.insert(self.section.controls, p)
+            end
+
+            local swatchBtn = create('TextButton', {
+                AutoButtonColor = false,
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                Name = '#inline-picker',
+                Size = UDim2.fromOffset(22, 13),
+                Text = '',
+                ZIndex = 37
+            }, self.instances.addons)
+            makeCorner(swatchBtn, cornerPx)
+            makeStroke(swatchBtn, theme.Stroke, 1)
+
+            local display = create('Frame', {
+                Active = false,
+                BackgroundColor3 = s_color,
+                BorderSizePixel = 0,
+                Name = '#display',
+                Position = UDim2.fromOffset(1, 1),
+                Size = UDim2.new(1, -2, 1, -2),
+                ZIndex = 38
+            }, swatchBtn)
+            makeCorner(display, rounding and 1 or 0)
+            makeGradient(display, Color3.fromRGB(255, 255, 255), Color3.fromRGB(190, 190, 190), 90)
+
+            p.instances.controlFrame:Destroy()
+            p.instances.controlFrame = swatchBtn
+            p.instances.picker = swatchBtn
+            p.instances.display = display
+            p:setColor(s_color)
+
+            swatchBtn.MouseEnter:Connect(function()
+                p.focused = true
+                tween(swatchBtn['#stroke'], {Color = theme.StrokeHover}, 0.14, 1)
+            end)
+            swatchBtn.MouseLeave:Connect(function()
+                p.focused = false
+                tween(swatchBtn['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+            end)
+            swatchBtn.MouseButton1Click:Connect(function()
+                p:click()
+            end)
+
+            if (typeof(callback) == 'function') then
+                p:bindToEvent('onNewColor', callback)
+            end
+            return p
+        end
+
+        toggle.addHotkey = function(self, settings)
+            settings = settings or {}
+            local s_bind = settings.bind or settings.key or nil
+
+            local hk = elemClasses.hotkey:new()
+            hk.section = self.section
+            hk.name = settings.text or self.name
+            if (self.section) then
+                table.insert(self.section.controls, hk)
+            end
+
+            local badgeBtn = create('TextButton', {
+                AutoButtonColor = false,
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                Name = '#inline-hotkey',
+                Size = UDim2.fromOffset(0, 15),
+                Text = '',
+                ZIndex = 37
+            }, self.instances.addons)
+            makeCorner(badgeBtn, cornerPx)
+            makeStroke(badgeBtn, theme.Stroke, 1)
+
+            local hkLbl = create('TextLabel', {
+                Active = false,
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#hotkey',
+                Size = UDim2.fromOffset(0, 15),
+                Text = '[None]',
+                TextColor3 = theme.TextDim,
+                TextSize = 10,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                ZIndex = 38
+            }, badgeBtn)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, hkLbl)
+
+            hk.instances.controlFrame:Destroy()
+            hk.instances.controlFrame = badgeBtn
+            hk.instances.badge = badgeBtn
+            hk.instances.hotkey = hkLbl
+            hk:linkToControl(self)
+
+            if (s_bind) then
+                hk:setHotkey(s_bind)
+            end
+
+            badgeBtn.MouseEnter:Connect(function()
+                hk.focused = true
+                if (not hk.inputCon) then
+                    tween(hkLbl, {TextColor3 = theme.TextPrimary}, 0.14, 1)
+                    tween(badgeBtn['#stroke'], {Color = theme.StrokeHover}, 0.14, 1)
+                end
+            end)
+            badgeBtn.MouseLeave:Connect(function()
+                hk.focused = false
+                if (not hk.inputCon) then
+                    tween(hkLbl, {TextColor3 = theme.TextDim}, 0.14, 1)
+                    tween(badgeBtn['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+                end
+            end)
+            badgeBtn.MouseButton1Click:Connect(function()
+                hk:click()
+            end)
+
+            return hk
+        end
 
         elemClasses.section.addToggle = function(self, settings, callback)
             if (typeof(settings) ~= 'table') then
@@ -5282,6 +5436,7 @@ do
                 self.inputCon = nil
                 tween(display, {TextColor3 = self.focused and theme.TextPrimary or theme.TextDim}, 0.18, 1)
                 tween(badge['#stroke'], {Color = self.focused and theme.StrokeHover or theme.Stroke}, 0.18, 1)
+                if (ui.refreshKeybindList) then ui.refreshKeybindList() end
             end)
             return self
         end
@@ -5366,6 +5521,7 @@ do
                 self.hotkey = nil
                 self.instances.hotkey.Text = '[None]'
             end
+            if (ui.refreshKeybindList) then ui.refreshKeybindList() end
             return self
         end
         hotkey.getHotkey = function(self) return self.hotkey end
@@ -5391,6 +5547,1565 @@ do
         end
 
         elemClasses.hotkey = hotkey
+    end
+
+    do
+        local multiDropdown = {}
+        multiDropdown.__index = multiDropdown
+        setmetatable(multiDropdown, elemClasses.baseElement)
+        multiDropdown.class = 'multiDropdown'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                ClipsDescendants = true,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 26),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            local header = create('TextButton', {
+                AutoButtonColor = false,
+                BackgroundColor3 = theme.Button1,
+                BorderSizePixel = 0,
+                Name = '#header',
+                Position = UDim2.fromOffset(5, 2),
+                Size = UDim2.new(1, -10, 0, 22),
+                Text = '',
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(header, cornerPx)
+            makeStroke(header, theme.Stroke, 1)
+            makeGradient(header, Color3.fromRGB(255, 255, 255), Color3.fromRGB(218, 218, 218), 90)
+            makeTopSheen(header, 36)
+
+            local label = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                RichText = true,
+                Size = UDim2.new(0.5, 0, 1, 0),
+                Text = 'multi',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 36
+            }, header)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 7)}, label)
+
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#selected',
+                Position = UDim2.fromScale(0.45, 0),
+                Size = UDim2.new(0.55, -20, 1, 0),
+                Text = 'none',
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 36
+            }, header)
+
+            local chevHolder = create('Frame', {
+                AnchorPoint = Vector2.new(1, 0.5),
+                BackgroundTransparency = 1,
+                Name = '#chev',
+                Position = UDim2.new(1, -4, 0.5, 0),
+                Size = UDim2.fromOffset(12, 12),
+                ZIndex = 36
+            }, header)
+            makeChevronGlyph(chevHolder, 36, 4)
+
+            local list = create('ScrollingFrame', {
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                BottomImage = 'rbxassetid://9416839567',
+                CanvasSize = UDim2.fromOffset(0, 0),
+                ClipsDescendants = true,
+                MidImage = 'rbxassetid://9416839567',
+                Name = '#menu',
+                Position = UDim2.fromOffset(5, 25),
+                ScrollBarImageColor3 = theme.StrokeHover,
+                ScrollBarImageTransparency = 0.5,
+                ScrollBarThickness = 2,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
+                Size = UDim2.new(1, -10, 0, 0),
+                TopImage = 'rbxassetid://9416839567',
+                Visible = false,
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(list, cornerPx)
+            makeStroke(list, theme.Stroke, 1)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Vertical,
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                Name = '#layout',
+                Padding = UDim.new(0, 2),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            }, list)
+            create('UIPadding', {
+                PaddingTop = UDim.new(0, 3),
+                PaddingBottom = UDim.new(0, 3),
+                PaddingLeft = UDim.new(0, 3),
+                PaddingRight = UDim.new(0, 3)
+            }, list)
+        end
+        multiDropdown.instances = instances
+        multiDropdown.focused = false
+        multiDropdown.openState = false
+
+        local function getMenuHeight(self)
+            local count = #self.options
+            if (count == 0) then
+                return 22
+            end
+            return math.min(count * 20 + math.max(0, count - 1) * 2 + 6, 126)
+        end
+
+        local function updateSummary(self)
+            local picked = {}
+            for _, opt in ipairs(self.options) do
+                if (self.selected[opt]) then
+                    table.insert(picked, tostring(opt))
+                end
+            end
+            if (#picked == 0) then
+                self.instances.selected.Text = 'none'
+            elseif (#picked <= 2) then
+                self.instances.selected.Text = table.concat(picked, ', ')
+            else
+                self.instances.selected.Text = tostring(#picked) .. ' selected'
+            end
+        end
+
+        local function syncOptionVisual(self, opt)
+            local btn = self.optionButtons[opt]
+            if (not btn) then return end
+            local active = self.selected[opt] == true
+            local box = btn['#box']
+            local fill = box['#fill']
+            tween(btn, {
+                BackgroundColor3 = active and theme.Button3 or theme.Window3,
+                BackgroundTransparency = active and 0 or 1,
+                TextColor3 = active and theme.TextPrimary or theme.TextDim
+            }, 0.14, 1)
+            tween(fill, {
+                Size = active and UDim2.fromOffset(6, 6) or UDim2.fromOffset(0, 0),
+                BackgroundTransparency = active and 0 or 1
+            }, 0.16, 1)
+            tween(box['#stroke'], {Color = active and theme.Primary or theme.Stroke}, 0.14, 1)
+        end
+
+        multiDropdown.open = function(self)
+            self.openState = true
+            local h = getMenuHeight(self)
+            local menu = self.instances.menu
+            menu.Visible = true
+            tween(self.instances.header, {BackgroundColor3 = theme.Button2}, 0.16, 1)
+            tween(self.instances.header['#stroke'], {Color = theme.StrokeHover}, 0.16, 1)
+            tween(self.instances.chev['#icon'], {Rotation = 180}, 0.2, 1)
+            setGlyphColor(self.instances.chev['#icon'], theme.Primary, 0.2)
+            tween(menu, {Size = UDim2.new(1, -10, 0, h)}, 0.2, 1)
+            tween(self.instances.controlFrame, {Size = UDim2.new(1, 0, 0, 28 + h)}, 0.2, 1)
+            self:fireEvent('onOpen')
+            return self
+        end
+
+        multiDropdown.close = function(self)
+            self.openState = false
+            local menu = self.instances.menu
+            tween(self.instances.header, {BackgroundColor3 = self.focused and theme.Button2 or theme.Button1}, 0.16, 1)
+            tween(self.instances.header['#stroke'], {Color = self.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+            tween(self.instances.chev['#icon'], {Rotation = 0}, 0.2, 1)
+            setGlyphColor(self.instances.chev['#icon'], self.focused and theme.TextPrimary or theme.TextDim, 0.2)
+            tween(menu, {Size = UDim2.new(1, -10, 0, 0)}, 0.18, 1)
+            tween(self.instances.controlFrame, {Size = UDim2.new(1, 0, 0, 26)}, 0.18, 1)
+            task.delay(0.18, function()
+                if (not self.openState and menu and menu.Parent) then
+                    menu.Visible = false
+                end
+            end)
+            self:fireEvent('onClose')
+            return self
+        end
+
+        multiDropdown.isOpen = function(self) return self.openState end
+
+        multiDropdown.getValues = function(self)
+            local out = {}
+            for _, opt in ipairs(self.options) do
+                if (self.selected[opt]) then
+                    table.insert(out, opt)
+                end
+            end
+            return out
+        end
+
+        multiDropdown.getValue = multiDropdown.getValues
+
+        multiDropdown.isSelected = function(self, opt)
+            return self.selected[opt] == true
+        end
+
+        multiDropdown.setValues = function(self, vals, silent)
+            table.clear(self.selected)
+            if (typeof(vals) == 'table') then
+                for k, v in pairs(vals) do
+                    if (typeof(k) == 'number') then
+                        self.selected[v] = true
+                    elseif (v == true) then
+                        self.selected[k] = true
+                    end
+                end
+            end
+            for _, opt in ipairs(self.options) do
+                syncOptionVisual(self, opt)
+            end
+            updateSummary(self)
+            if (not silent) then
+                self:fireEvent('onSelect', self:getValues(), self.selected)
+            end
+            return self
+        end
+
+        multiDropdown.toggleOption = function(self, opt, silent)
+            self.selected[opt] = not self.selected[opt]
+            syncOptionVisual(self, opt)
+            updateSummary(self)
+            if (not silent) then
+                self:fireEvent('onSelect', self:getValues(), self.selected)
+            end
+            return self
+        end
+
+        multiDropdown.setOptions = function(self, newOptions)
+            for _, btn in pairs(self.optionButtons) do
+                btn:Destroy()
+            end
+            table.clear(self.optionButtons)
+            table.clear(self.options)
+
+            for idx, opt in ipairs(newOptions) do
+                table.insert(self.options, opt)
+                local btn = create('TextButton', {
+                    AutoButtonColor = false,
+                    BackgroundColor3 = theme.Window3,
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Font = currentFont,
+                    LayoutOrder = idx,
+                    Name = '#opt-' .. idx,
+                    Size = UDim2.new(1, 0, 0, 20),
+                    Text = tostring(opt),
+                    TextColor3 = theme.TextDim,
+                    TextSize = 12,
+                    TextStrokeColor3 = theme.TextStroke,
+                    TextStrokeTransparency = 0.85,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 36
+                }, self.instances.menu)
+                makeCorner(btn, cornerPx)
+                create('UIPadding', {PaddingLeft = UDim.new(0, 22)}, btn)
+
+                local box = create('Frame', {
+                    Active = false,
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    BackgroundColor3 = theme.Window2,
+                    BorderSizePixel = 0,
+                    Name = '#box',
+                    Position = UDim2.new(0, -16, 0.5, 0),
+                    Size = UDim2.fromOffset(10, 10),
+                    ZIndex = 37
+                }, btn)
+                makeCorner(box, rounding and 1 or 0)
+                makeStroke(box, theme.Stroke, 1)
+
+                local fill = create('Frame', {
+                    Active = false,
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Name = '#fill',
+                    Position = UDim2.fromScale(0.5, 0.5),
+                    Size = UDim2.fromOffset(0, 0),
+                    ZIndex = 38
+                }, box)
+                makeGradient(fill, theme.Primary, theme.Secondary, 135)
+
+                btn.MouseEnter:Connect(function()
+                    if (not self.selected[opt]) then
+                        tween(btn, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0, TextColor3 = theme.TextPrimary}, 0.12, 1)
+                    end
+                end)
+                btn.MouseLeave:Connect(function()
+                    if (not self.selected[opt]) then
+                        tween(btn, {BackgroundTransparency = 1, TextColor3 = theme.TextDim}, 0.12, 1)
+                    end
+                end)
+                btn.MouseButton1Click:Connect(function()
+                    self:toggleOption(opt)
+                end)
+
+                self.optionButtons[opt] = btn
+                syncOptionVisual(self, opt)
+            end
+
+            updateSummary(self)
+            if (self.openState) then
+                local h = getMenuHeight(self)
+                self.instances.menu.Size = UDim2.new(1, -10, 0, h)
+                self.instances.controlFrame.Size = UDim2.new(1, 0, 0, 28 + h)
+            end
+            return self
+        end
+        multiDropdown.refresh = multiDropdown.setOptions
+
+        multiDropdown.click = function(self)
+            if (self.openState) then self:close() else self:open() end
+            return self
+        end
+        multiDropdown.__hotkeyFunc = multiDropdown.click
+
+        multiDropdown.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            new.options = {}
+            new.selected = {}
+            new.optionButtons = {}
+
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.header = insts.controlFrame['#header']
+            insts.label = insts.header['#label']
+            insts.selected = insts.header['#selected']
+            insts.chev = insts.header['#chev']
+            insts.menu = insts.controlFrame['#menu']
+
+            insts.header.MouseEnter:Connect(function()
+                new.focused = true
+                new:showTooltip()
+                tween(insts.header, {BackgroundColor3 = theme.Button2}, 0.14, 1)
+                tween(insts.header['#stroke'], {Color = theme.StrokeHover}, 0.14, 1)
+            end)
+            insts.header.MouseLeave:Connect(function()
+                new.focused = false
+                new:hideTooltip()
+                if (not new.openState) then
+                    tween(insts.header, {BackgroundColor3 = theme.Button1}, 0.14, 1)
+                    tween(insts.header['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+                end
+            end)
+            insts.header.MouseButton1Click:Connect(function()
+                new:click()
+            end)
+
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addMultiDropdown = function(self, settings, callback)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for settings', 2)
+            end
+            local s_title = settings.text or 'multi'
+            local s_options = settings.options or {}
+            local s_default = settings.values or settings.default or {}
+
+            local new = multiDropdown:new()
+            new.section = self
+            new.name = s_title
+            table.insert(self.controls, new)
+
+            new.instances.label.Text = s_title
+            new:setOptions(s_options)
+            new:setValues(s_default, true)
+            new.instances.controlFrame.Parent = self.instances.controlMenu
+
+            if (typeof(callback) == 'function') then
+                new:bindToEvent('onSelect', callback)
+            end
+            return new
+        end
+
+        elemClasses.multiDropdown = multiDropdown
+    end
+
+    do
+        local divider = {}
+        divider.__index = divider
+        setmetatable(divider, elemClasses.baseElement)
+        divider.class = 'divider'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 14),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            create('Frame', {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = theme.Stroke,
+                BorderSizePixel = 0,
+                Name = '#line',
+                Position = UDim2.new(0, 5, 0.5, 0),
+                Size = UDim2.new(1, -10, 0, 1),
+                ZIndex = 35
+            }, controlFrame)
+
+            local lbl = create('TextLabel', {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundColor3 = theme.Window2,
+                BorderSizePixel = 0,
+                Font = currentFont,
+                Name = '#label',
+                Position = UDim2.fromScale(0.5, 0.5),
+                Size = UDim2.fromOffset(0, 14),
+                Text = '',
+                TextColor3 = theme.TextDim,
+                TextSize = 10,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                Visible = false,
+                ZIndex = 36
+            }, controlFrame)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5)}, lbl)
+        end
+        divider.instances = instances
+
+        divider.setText = function(self, txt)
+            local lbl = self.instances.label
+            if (txt and tostring(txt) ~= '') then
+                lbl.Text = tostring(txt)
+                lbl.Visible = true
+                self.instances.controlFrame.Size = UDim2.new(1, 0, 0, 16)
+            else
+                lbl.Text = ''
+                lbl.Visible = false
+                self.instances.controlFrame.Size = UDim2.new(1, 0, 0, 10)
+            end
+            return self
+        end
+
+        divider.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.line = insts.controlFrame['#line']
+            insts.label = insts.controlFrame['#label']
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addDivider = function(self, settings)
+            settings = settings or {}
+            local s_text = typeof(settings) == 'string' and settings or settings.text
+            local d = divider:new()
+            d.section = self
+            d.name = s_text or ''
+            table.insert(self.controls, d)
+            d:setText(s_text)
+            d.instances.controlFrame.Parent = self.instances.controlMenu
+            return d
+        end
+
+        elemClasses.divider = divider
+    end
+
+    do
+        local segmented = {}
+        segmented.__index = segmented
+        setmetatable(segmented, elemClasses.baseElement)
+        segmented.class = 'segmented'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 40),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            local label = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, 0, 0, 15),
+                Text = 'mode',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 35
+            }, controlFrame)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, label)
+
+            local group = create('Frame', {
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                Name = '#group',
+                Position = UDim2.fromOffset(5, 17),
+                Size = UDim2.new(1, -10, 0, 21),
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(group, cornerPx)
+            makeStroke(group, theme.Stroke, 1)
+        end
+        segmented.instances = instances
+
+        segmented.getValue = function(self)
+            return self.value
+        end
+
+        segmented.setValue = function(self, val, silent)
+            self.value = val
+            for opt, btn in pairs(self.buttons) do
+                local active = (opt == val)
+                tween(btn, {
+                    BackgroundColor3 = active and theme.Button3 or theme.Button1,
+                    TextColor3 = active and theme.TextPrimary or theme.TextDim
+                }, 0.16, 1)
+                tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.16, 1)
+            end
+            if (not silent) then
+                self:fireEvent('onSelect', val)
+            end
+            return self
+        end
+
+        segmented.setOptions = function(self, opts)
+            for _, btn in pairs(self.buttons) do
+                btn:Destroy()
+            end
+            table.clear(self.buttons)
+            table.clear(self.options)
+
+            local count = math.max(1, #opts)
+            local frac = 1 / count
+            for idx, opt in ipairs(opts) do
+                table.insert(self.options, opt)
+                local btn = create('TextButton', {
+                    AutoButtonColor = false,
+                    BackgroundColor3 = theme.Button1,
+                    BorderSizePixel = 0,
+                    Font = currentFont,
+                    Name = '#seg-' .. idx,
+                    Position = UDim2.new((idx - 1) * frac, 1, 0, 1),
+                    Size = UDim2.new(frac, -2, 1, -2),
+                    Text = tostring(opt),
+                    TextColor3 = theme.TextDim,
+                    TextSize = 11,
+                    TextStrokeColor3 = theme.TextStroke,
+                    TextStrokeTransparency = 0.85,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    ZIndex = 36
+                }, self.instances.group)
+                makeCorner(btn, cornerPx)
+                local ind = create('Frame', {
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Name = '#ind',
+                    Position = UDim2.new(0, 0, 1, -2),
+                    Size = UDim2.new(1, 0, 0, 2),
+                    ZIndex = 37
+                }, btn)
+                makeGradient(ind, theme.Primary, theme.Secondary, 0)
+
+                btn.MouseEnter:Connect(function()
+                    self:showTooltip()
+                    if (self.value ~= opt) then
+                        tween(btn, {BackgroundColor3 = theme.Button2, TextColor3 = theme.TextPrimary}, 0.14, 1)
+                    end
+                end)
+                btn.MouseLeave:Connect(function()
+                    self:hideTooltip()
+                    if (self.value ~= opt) then
+                        tween(btn, {BackgroundColor3 = theme.Button1, TextColor3 = theme.TextDim}, 0.14, 1)
+                    end
+                end)
+                btn.MouseButton1Click:Connect(function()
+                    self:setValue(opt)
+                end)
+                self.buttons[opt] = btn
+            end
+            return self
+        end
+
+        segmented.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            new.options = {}
+            new.buttons = {}
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.label = insts.controlFrame['#label']
+            insts.group = insts.controlFrame['#group']
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addSegmented = function(self, settings, callback)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for settings', 2)
+            end
+            local s_title = settings.text or 'mode'
+            local s_options = settings.options or {'a', 'b'}
+            local s_default = settings.value ~= nil and settings.value or (settings.default ~= nil and settings.default or s_options[1])
+
+            local new = segmented:new()
+            new.section = self
+            new.name = s_title
+            table.insert(self.controls, new)
+
+            new.instances.label.Text = s_title
+            new:setOptions(s_options)
+            if (s_default ~= nil) then
+                new:setValue(s_default, true)
+            end
+            new.instances.controlFrame.Parent = self.instances.controlMenu
+
+            if (typeof(callback) == 'function') then
+                new:bindToEvent('onSelect', callback)
+            end
+            return new
+        end
+
+        elemClasses.segmented = segmented
+    end
+
+    do
+        local rangeSlider = {}
+        rangeSlider.__index = rangeSlider
+        setmetatable(rangeSlider, elemClasses.baseElement)
+        rangeSlider.class = 'rangeSlider'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 32),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            local title = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Position = UDim2.fromOffset(0, 1),
+                Size = UDim2.new(0.58, 0, 0, 15),
+                Text = 'range',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 35
+            }, controlFrame)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, title)
+
+            local val = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#val',
+                Position = UDim2.new(0.55, 0, 0, 1),
+                Size = UDim2.new(0.45, 0, 0, 15),
+                Text = '0 - 100',
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 35
+            }, controlFrame)
+            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
+
+            local track = create('Frame', {
+                Active = true,
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                Name = '#track',
+                Position = UDim2.fromOffset(5, 19),
+                Size = UDim2.new(1, -10, 0, 9),
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(track, cornerPx)
+            makeStroke(track, theme.Stroke, 1)
+
+            local fill = create('Frame', {
+                Active = false,
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#fill',
+                Position = UDim2.fromScale(0, 0),
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 36
+            }, track)
+            makeCorner(fill, cornerPx)
+            makeGradient(fill, theme.Primary, theme.Secondary, 0)
+            makeTopSheen(fill, 37)
+
+            create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 0.2,
+                BorderSizePixel = 0,
+                Name = '#cap-l',
+                Position = UDim2.fromScale(0, 0),
+                Size = UDim2.new(0, 2, 1, 0),
+                ZIndex = 37
+            }, fill)
+
+            create('Frame', {
+                AnchorPoint = Vector2.new(1, 0),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BackgroundTransparency = 0.2,
+                BorderSizePixel = 0,
+                Name = '#cap-r',
+                Position = UDim2.fromScale(1, 0),
+                Size = UDim2.new(0, 2, 1, 0),
+                ZIndex = 37
+            }, fill)
+        end
+        rangeSlider.instances = instances
+
+        rangeSlider.focused = false
+        rangeSlider.dragging = false
+        rangeSlider.min = 0
+        rangeSlider.max = 100
+        rangeSlider.step = 1
+        rangeSlider.low = 20
+        rangeSlider.high = 80
+        rangeSlider.format = '%d'
+        rangeSlider.suffix = ''
+
+        local function updateRangeVisual(self, animate)
+            local span = math.max(1e-6, self.max - self.min)
+            local lRatio = math.clamp((self.low - self.min) / span, 0, 1)
+            local hRatio = math.clamp((self.high - self.min) / span, 0, 1)
+            local pos = UDim2.fromScale(lRatio, 0)
+            local sz = UDim2.fromScale(math.max(0.01, hRatio - lRatio), 1)
+            if (animate) then
+                tween(self.instances.fill, {Position = pos, Size = sz}, 0.18, 1)
+            else
+                self.instances.fill.Position = pos
+                self.instances.fill.Size = sz
+            end
+            self.instances.value.Text = (self.format:format(self.low) .. ' - ' .. self.format:format(self.high) .. self.suffix)
+        end
+
+        rangeSlider.getRange = function(self)
+            return self.low, self.high
+        end
+        rangeSlider.getValue = rangeSlider.getRange
+
+        rangeSlider.setRange = function(self, low, high, silent)
+            local lo = math.clamp(math.floor((math.clamp(low, self.min, self.max) + self.step / 2) / self.step) * self.step, self.min, self.max)
+            local hi = math.clamp(math.floor((math.clamp(high, self.min, self.max) + self.step / 2) / self.step) * self.step, self.min, self.max)
+            if (lo > hi) then
+                lo, hi = hi, lo
+            end
+            self.low = lo
+            self.high = hi
+            updateRangeVisual(self, true)
+            if (not silent) then
+                self:fireEvent('onNewRange', lo, hi)
+            end
+            return self
+        end
+
+        rangeSlider.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.label = insts.controlFrame['#label']
+            insts.value = insts.controlFrame['#val']
+            insts.track = insts.controlFrame['#track']
+            insts.fill = insts.track['#fill']
+
+            insts.track.MouseEnter:Connect(function()
+                new.focused = true
+                new:showTooltip()
+                tween(insts.track['#stroke'], {Color = new.dragging and theme.Primary or theme.StrokeHover}, 0.14, 1)
+                tween(insts.value, {TextColor3 = theme.TextPrimary}, 0.14, 1)
+            end)
+            insts.track.MouseLeave:Connect(function()
+                new.focused = false
+                new:hideTooltip()
+                if (not new.dragging) then
+                    tween(insts.track['#stroke'], {Color = theme.Stroke}, 0.14, 1)
+                    tween(insts.value, {TextColor3 = theme.TextDim}, 0.14, 1)
+                end
+            end)
+
+            local dcon, econ
+            local activeHandle = 'low'
+
+            local function xToValue(x)
+                local tPos = insts.track.AbsolutePosition.X
+                local tW = math.max(1, insts.track.AbsoluteSize.X)
+                local r = math.clamp((x - tPos) / tW, 0, 1)
+                local raw = new.min + r * (new.max - new.min)
+                return math.clamp(math.floor((raw + new.step / 2) / new.step) * new.step, new.min, new.max)
+            end
+
+            local function applyDrag(x)
+                local v = xToValue(x)
+                local oldL, oldH = new.low, new.high
+                if (activeHandle == 'low') then
+                    new.low = math.min(v, new.high)
+                else
+                    new.high = math.max(v, new.low)
+                end
+                updateRangeVisual(new, false)
+                if (new.low ~= oldL or new.high ~= oldH) then
+                    new:fireEvent('onNewRange', new.low, new.high)
+                end
+            end
+
+            insts.track.InputBegan:Connect(function(io)
+                if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    local clickVal = xToValue(io.Position.X)
+                    activeHandle = (math.abs(clickVal - new.low) <= math.abs(clickVal - new.high)) and 'low' or 'high'
+                    new.dragging = true
+                    tween(insts.track['#stroke'], {Color = theme.Primary}, 0.14, 1)
+                    tween(insts.value, {TextColor3 = theme.Primary}, 0.14, 1)
+                    applyDrag(io.Position.X)
+
+                    if (dcon) then dcon:Disconnect() end
+                    if (econ) then econ:Disconnect() end
+                    dcon = inputService.InputChanged:Connect(function(mio)
+                        if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            applyDrag(mio.Position.X)
+                        end
+                    end)
+                    econ = inputService.InputEnded:Connect(function(eio)
+                        if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            new.dragging = false
+                            if (dcon) then dcon:Disconnect(); dcon = nil end
+                            if (econ) then econ:Disconnect(); econ = nil end
+                            tween(insts.track['#stroke'], {Color = new.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+                            tween(insts.value, {TextColor3 = new.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+                        end
+                    end)
+                end
+            end)
+
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addRangeSlider = function(self, settings, callback)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for settings', 2)
+            end
+            local s_title = settings.text or 'range'
+            local s_min = settings.min or 0
+            local s_max = settings.max or 100
+            local s_step = settings.step or 1
+            local s_low = settings.low ~= nil and settings.low or s_min
+            local s_high = settings.high ~= nil and settings.high or s_max
+            local s_suffix = settings.suffix or ''
+
+            local rs = rangeSlider:new()
+            rs.section = self
+            rs.name = s_title
+            rs.min = s_min
+            rs.max = s_max
+            rs.step = s_step
+            rs.suffix = tostring(s_suffix)
+
+            if (s_step >= 1) then
+                rs.format = '%d'
+            elseif (s_step >= 0.1) then
+                rs.format = '%.1f'
+            elseif (s_step >= 0.01) then
+                rs.format = '%.2f'
+            else
+                rs.format = '%.3f'
+            end
+
+            table.insert(self.controls, rs)
+            rs.instances.label.Text = s_title
+            rs:setRange(s_low, s_high, true)
+            rs.instances.controlFrame.Parent = self.instances.controlMenu
+
+            if (typeof(callback) == 'function') then
+                rs:bindToEvent('onNewRange', callback)
+            end
+            return rs
+        end
+
+        elemClasses.rangeSlider = rangeSlider
+    end
+
+    do
+        local dualButton = {}
+        dualButton.__index = dualButton
+        setmetatable(dualButton, elemClasses.baseElement)
+        dualButton.class = 'dualButton'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 24),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            local function makeHalf(name, pos, sz)
+                local btn = create('TextButton', {
+                    AutoButtonColor = false,
+                    BackgroundColor3 = theme.Button1,
+                    BorderSizePixel = 0,
+                    Font = currentFont,
+                    Name = name,
+                    Position = pos,
+                    Size = sz,
+                    Text = 'action',
+                    TextColor3 = theme.TextPrimary,
+                    TextSize = 12,
+                    TextStrokeColor3 = theme.TextStroke,
+                    TextStrokeTransparency = 0.85,
+                    ZIndex = 35
+                }, controlFrame)
+                makeCorner(btn, cornerPx)
+                makeStroke(btn, theme.Stroke, 1)
+                makeGradient(btn, Color3.fromRGB(255, 255, 255), Color3.fromRGB(214, 214, 214), 90)
+                makeTopSheen(btn, 36)
+                return btn
+            end
+
+            makeHalf('#left', UDim2.fromOffset(5, 2), UDim2.new(0.5, -7, 0, 20))
+            makeHalf('#right', UDim2.new(0.5, 2, 0, 2), UDim2.new(0.5, -7, 0, 20))
+        end
+        dualButton.instances = instances
+
+        dualButton.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            new.leftFocused = false
+            new.rightFocused = false
+
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.left = insts.controlFrame['#left']
+            insts.right = insts.controlFrame['#right']
+
+            local function wire(btn, focusKey, eventName)
+                btn.MouseEnter:Connect(function()
+                    new[focusKey] = true
+                    new:showTooltip()
+                    tween(btn, {BackgroundColor3 = theme.Button2}, 0.16, 1)
+                    tween(btn['#stroke'], {Color = theme.StrokeHover}, 0.16, 1)
+                end)
+                btn.MouseLeave:Connect(function()
+                    new[focusKey] = false
+                    new:hideTooltip()
+                    tween(btn, {BackgroundColor3 = theme.Button1}, 0.16, 1)
+                    tween(btn['#stroke'], {Color = theme.Stroke}, 0.16, 1)
+                end)
+                btn.MouseButton1Click:Connect(function()
+                    btn.BackgroundColor3 = theme.Button4
+                    btn['#stroke'].Color = theme.Primary
+                    btn.TextColor3 = theme.Primary
+                    tween(btn, {BackgroundColor3 = new[focusKey] and theme.Button2 or theme.Button1}, 0.4, 1)
+                    tween(btn['#stroke'], {Color = new[focusKey] and theme.StrokeHover or theme.Stroke}, 0.4, 1)
+                    tween(btn, {TextColor3 = theme.TextPrimary}, 0.4, 1)
+                    new:fireEvent(eventName)
+                end)
+            end
+
+            wire(insts.left, 'leftFocused', 'onLeftClick')
+            wire(insts.right, 'rightFocused', 'onRightClick')
+
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addDualButton = function(self, settings, leftCb, rightCb)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for settings', 2)
+            end
+            local s_left = settings.left or 'left'
+            local s_right = settings.right or 'right'
+
+            local db = dualButton:new()
+            db.section = self
+            db.name = s_left .. ' / ' .. s_right
+            table.insert(self.controls, db)
+
+            db.instances.left.Text = s_left
+            db.instances.right.Text = s_right
+            db.instances.controlFrame.Parent = self.instances.controlMenu
+
+            if (typeof(leftCb) == 'function') then
+                db:bindToEvent('onLeftClick', leftCb)
+            end
+            if (typeof(rightCb) == 'function') then
+                db:bindToEvent('onRightClick', rightCb)
+            end
+            return db
+        end
+
+        elemClasses.dualButton = dualButton
+    end
+
+    do
+        local progressBar = {}
+        progressBar.__index = progressBar
+        setmetatable(progressBar, elemClasses.baseElement)
+        progressBar.class = 'progressBar'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 30),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            local label = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Position = UDim2.fromOffset(0, 1),
+                Size = UDim2.new(0.68, 0, 0, 14),
+                Text = 'progress',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 35
+            }, controlFrame)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, label)
+
+            local val = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#val',
+                Position = UDim2.new(0.68, 0, 0, 1),
+                Size = UDim2.new(0.32, 0, 0, 14),
+                Text = '0%',
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 35
+            }, controlFrame)
+            create('UIPadding', {PaddingRight = UDim.new(0, 6)}, val)
+
+            local track = create('Frame', {
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                Name = '#track',
+                Position = UDim2.fromOffset(5, 18),
+                Size = UDim2.new(1, -10, 0, 7),
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(track, cornerPx)
+            makeStroke(track, theme.Stroke, 1)
+
+            local fill = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#fill',
+                Size = UDim2.fromScale(0, 1),
+                ZIndex = 36
+            }, track)
+            makeCorner(fill, cornerPx)
+            makeGradient(fill, theme.Primary, theme.Secondary, 0)
+            makeTopSheen(fill, 37)
+        end
+        progressBar.instances = instances
+        progressBar.value = 0
+        progressBar.max = 100
+        progressBar.suffix = '%'
+
+        progressBar.setText = function(self, txt)
+            self.instances.label.Text = tostring(txt)
+            return self
+        end
+
+        progressBar.getValue = function(self)
+            return self.value
+        end
+
+        progressBar.setValue = function(self, val, newMax, customText)
+            if (typeof(newMax) == 'number') then
+                self.max = newMax
+            end
+            self.value = math.clamp(val, 0, self.max)
+            local ratio = (self.max <= 0) and 0 or (self.value / self.max)
+            tween(self.instances.fill, {Size = UDim2.fromScale(ratio, 1)}, 0.22, 1)
+            if (customText ~= nil) then
+                self.instances.value.Text = tostring(customText)
+            elseif (self.suffix == '%') then
+                self.instances.value.Text = tostring(math.floor(ratio * 100 + 0.5)) .. '%'
+            else
+                self.instances.value.Text = tostring(self.value) .. self.suffix
+            end
+            return self
+        end
+
+        progressBar.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.label = insts.controlFrame['#label']
+            insts.value = insts.controlFrame['#val']
+            insts.track = insts.controlFrame['#track']
+            insts.fill = insts.track['#fill']
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addProgressBar = function(self, settings)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for settings', 2)
+            end
+            local pb = progressBar:new()
+            pb.section = self
+            pb.name = settings.text or 'progress'
+            pb.max = settings.max or 100
+            pb.suffix = settings.suffix or '%'
+            table.insert(self.controls, pb)
+
+            pb.instances.label.Text = pb.name
+            pb:setValue(settings.value or settings.val or 0, pb.max, settings.display)
+            pb.instances.controlFrame.Parent = self.instances.controlMenu
+            return pb
+        end
+
+        elemClasses.progressBar = progressBar
+    end
+
+    do
+        local listbox = {}
+        listbox.__index = listbox
+        setmetatable(listbox, elemClasses.baseElement)
+        listbox.class = 'listbox'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 126),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            local label = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, 0, 0, 15),
+                Text = 'list',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 35
+            }, controlFrame)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6)}, label)
+
+            local box = create('Frame', {
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Name = '#box',
+                Position = UDim2.fromOffset(5, 17),
+                Size = UDim2.new(1, -10, 1, -19),
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(box, cornerPx)
+            makeStroke(box, theme.Stroke, 1)
+
+            local searchWrap = create('Frame', {
+                BackgroundColor3 = theme.Window3,
+                BorderSizePixel = 0,
+                Name = '#search-wrap',
+                Size = UDim2.new(1, 0, 0, 20),
+                ZIndex = 36
+            }, box)
+            create('Frame', {
+                BackgroundColor3 = theme.Stroke,
+                BorderSizePixel = 0,
+                Position = UDim2.new(0, 0, 1, -1),
+                Size = UDim2.new(1, 0, 0, 1),
+                ZIndex = 37
+            }, searchWrap)
+
+            local searchBox = create('TextBox', {
+                BackgroundTransparency = 1,
+                ClearTextOnFocus = false,
+                ClipsDescendants = true,
+                Font = currentFont,
+                Name = '#search',
+                PlaceholderColor3 = theme.TextDim,
+                PlaceholderText = 'filter...',
+                Size = UDim2.fromScale(1, 1),
+                Text = '',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 37
+            }, searchWrap)
+            create('UIPadding', {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, searchBox)
+
+            local list = create('ScrollingFrame', {
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                BottomImage = 'rbxassetid://9416839567',
+                CanvasSize = UDim2.fromOffset(0, 0),
+                MidImage = 'rbxassetid://9416839567',
+                Name = '#list',
+                Position = UDim2.fromOffset(0, 20),
+                ScrollBarImageColor3 = theme.StrokeHover,
+                ScrollBarImageTransparency = 0.5,
+                ScrollBarThickness = 2,
+                ScrollingDirection = Enum.ScrollingDirection.Y,
+                Size = UDim2.new(1, 0, 1, -20),
+                TopImage = 'rbxassetid://9416839567',
+                ZIndex = 36
+            }, box)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Vertical,
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                Padding = UDim.new(0, 2),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            }, list)
+            create('UIPadding', {
+                PaddingTop = UDim.new(0, 3),
+                PaddingBottom = UDim.new(0, 3),
+                PaddingLeft = UDim.new(0, 3),
+                PaddingRight = UDim.new(0, 4)
+            }, list)
+        end
+        listbox.instances = instances
+
+        listbox.getValue = function(self)
+            return self.value
+        end
+
+        listbox.setValue = function(self, val, silent)
+            self.value = val
+            for item, btn in pairs(self.itemButtons) do
+                local active = (item == val)
+                tween(btn, {
+                    BackgroundColor3 = active and theme.Button3 or theme.Window3,
+                    BackgroundTransparency = active and 0 or 1,
+                    TextColor3 = active and theme.TextPrimary or theme.TextDim
+                }, 0.14, 1)
+                tween(btn['#ind'], {BackgroundTransparency = active and 0 or 1}, 0.14, 1)
+            end
+            if (not silent) then
+                self:fireEvent('onSelect', val)
+            end
+            return self
+        end
+
+        listbox.setItems = function(self, newItems)
+            for _, btn in pairs(self.itemButtons) do
+                btn:Destroy()
+            end
+            table.clear(self.itemButtons)
+            table.clear(self.items)
+
+            local filter = self.instances.search.Text:lower()
+            for idx, item in ipairs(newItems) do
+                table.insert(self.items, item)
+                local text = tostring(item)
+                local btn = create('TextButton', {
+                    AutoButtonColor = false,
+                    BackgroundColor3 = theme.Window3,
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Font = currentFont,
+                    LayoutOrder = idx,
+                    Name = '#item-' .. idx,
+                    Size = UDim2.new(1, 0, 0, 19),
+                    Text = text,
+                    TextColor3 = theme.TextDim,
+                    TextSize = 11,
+                    TextStrokeColor3 = theme.TextStroke,
+                    TextStrokeTransparency = 0.85,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Visible = (filter == '' or text:lower():find(filter, 1, true) ~= nil),
+                    ZIndex = 37
+                }, self.instances.list)
+                makeCorner(btn, cornerPx)
+                create('UIPadding', {PaddingLeft = UDim.new(0, 8)}, btn)
+
+                local ind = create('Frame', {
+                    AnchorPoint = Vector2.new(0, 0.5),
+                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Name = '#ind',
+                    Position = UDim2.new(0, -8, 0.5, 0),
+                    Size = UDim2.new(0, 2, 0, 11),
+                    ZIndex = 38
+                }, btn)
+                makeGradient(ind, theme.Primary, theme.Secondary, 90)
+
+                btn.MouseEnter:Connect(function()
+                    if (self.value ~= item) then
+                        tween(btn, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0, TextColor3 = theme.TextPrimary}, 0.12, 1)
+                    end
+                end)
+                btn.MouseLeave:Connect(function()
+                    if (self.value ~= item) then
+                        tween(btn, {BackgroundTransparency = 1, TextColor3 = theme.TextDim}, 0.12, 1)
+                    end
+                end)
+                btn.MouseButton1Click:Connect(function()
+                    self:setValue(item)
+                end)
+                self.itemButtons[item] = btn
+            end
+            if (self.value ~= nil) then
+                self:setValue(self.value, true)
+            end
+            return self
+        end
+        listbox.refresh = listbox.setItems
+
+        listbox.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            new.items = {}
+            new.itemButtons = {}
+
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.label = insts.controlFrame['#label']
+            insts.box = insts.controlFrame['#box']
+            insts.searchWrap = insts.box['#search-wrap']
+            insts.search = insts.searchWrap['#search']
+            insts.list = insts.box['#list']
+
+            insts.search:GetPropertyChangedSignal('Text'):Connect(function()
+                local q = insts.search.Text:lower()
+                for item, btn in pairs(new.itemButtons) do
+                    btn.Visible = (q == '' or tostring(item):lower():find(q, 1, true) ~= nil)
+                end
+            end)
+
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addListbox = function(self, settings, callback)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for settings', 2)
+            end
+            local lb = listbox:new()
+            lb.section = self
+            lb.name = settings.text or 'list'
+            table.insert(self.controls, lb)
+
+            local height = settings.height or 106
+            lb.instances.controlFrame.Size = UDim2.new(1, 0, 0, height + 20)
+            lb.instances.label.Text = lb.name
+
+            if (settings.searchable == false) then
+                lb.instances.searchWrap.Visible = false
+                lb.instances.list.Position = UDim2.fromOffset(0, 0)
+                lb.instances.list.Size = UDim2.fromScale(1, 1)
+            end
+
+            lb:setItems(settings.items or settings.options or {})
+            if (settings.default ~= nil or settings.value ~= nil) then
+                lb:setValue(settings.value ~= nil and settings.value or settings.default, true)
+            end
+            lb.instances.controlFrame.Parent = self.instances.controlMenu
+
+            if (typeof(callback) == 'function') then
+                lb:bindToEvent('onSelect', callback)
+            end
+            return lb
+        end
+
+        elemClasses.listbox = listbox
+    end
+
+    do
+        local paragraph = {}
+        paragraph.__index = paragraph
+        setmetatable(paragraph, elemClasses.baseElement)
+        paragraph.class = 'paragraph'
+
+        local instances = {}
+        do
+            local controlFrame = create('Frame', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 0),
+                ZIndex = 34
+            })
+            instances.controlFrame = controlFrame
+
+            local card = create('Frame', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                Name = '#card',
+                Position = UDim2.fromOffset(5, 2),
+                Size = UDim2.new(1, -10, 0, 0),
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(card, cornerPx)
+            makeStroke(card, theme.Stroke, 1)
+
+            local bar = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#accent',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(0, 2, 1, 0),
+                ZIndex = 36
+            }, card)
+            makeGradient(bar, theme.Primary, theme.Secondary, 90)
+
+            local inner = create('Frame', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Name = '#inner',
+                Size = UDim2.new(1, 0, 0, 0),
+                ZIndex = 36
+            }, card)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Vertical,
+                Padding = UDim.new(0, 2),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            }, inner)
+            create('UIPadding', {
+                PaddingLeft = UDim.new(0, 8),
+                PaddingRight = UDim.new(0, 7),
+                PaddingTop = UDim.new(0, 5),
+                PaddingBottom = UDim.new(0, 6)
+            }, inner)
+
+            create('TextLabel', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                LayoutOrder = 1,
+                Name = '#title',
+                RichText = true,
+                Size = UDim2.new(1, 0, 0, 0),
+                Text = 'info',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 36
+            }, inner)
+
+            create('TextLabel', {
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                LayoutOrder = 2,
+                Name = '#body',
+                RichText = true,
+                Size = UDim2.new(1, 0, 0, 0),
+                Text = '',
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextWrapped = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 36
+            }, inner)
+
+            create('UIPadding', {PaddingBottom = UDim.new(0, 2)}, controlFrame)
+        end
+        paragraph.instances = instances
+
+        paragraph.setTitle = function(self, t)
+            self.instances.title.Text = tostring(t or '')
+            self.instances.title.Visible = (self.instances.title.Text ~= '')
+            return self
+        end
+
+        paragraph.setBody = function(self, b)
+            self.instances.body.Text = tostring(b or '')
+            return self
+        end
+
+        paragraph.setContent = function(self, t, b)
+            self:setTitle(t)
+            self:setBody(b)
+            return self
+        end
+
+        paragraph.new = function(self)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            local insts = {}
+            insts.controlFrame = self.instances.controlFrame:Clone()
+            insts.card = insts.controlFrame['#card']
+            insts.title = insts.card['#inner']['#title']
+            insts.body = insts.card['#inner']['#body']
+            new.instances = insts
+            return new
+        end
+
+        elemClasses.section.addParagraph = function(self, settings)
+            if (typeof(settings) ~= 'table') then
+                return error('expected type table for settings', 2)
+            end
+            local p = paragraph:new()
+            p.section = self
+            p.name = settings.title or settings.text or 'info'
+            table.insert(self.controls, p)
+            p:setTitle(settings.title or settings.text or '')
+            p:setBody(settings.content or settings.body or settings.desc or '')
+            p.instances.controlFrame.Parent = self.instances.controlMenu
+            return p
+        end
+
+        elemClasses.paragraph = paragraph
     end
 end
 
@@ -5481,6 +7196,12 @@ do
         end
         if (hint.instances and hint.instances.main and hint.instances.main:FindFirstChild('#scale')) then
             hint.instances.main['#scale'].Scale = currentScale
+        end
+        if (ui._watermarkFrame and ui._watermarkFrame:FindFirstChild('#scale')) then
+            ui._watermarkFrame['#scale'].Scale = currentScale
+        end
+        if (ui._keybindListFrame and ui._keybindListFrame:FindFirstChild('#scale')) then
+            ui._keybindListFrame['#scale'].Scale = currentScale
         end
         for _, w in ipairs(ui.windows) do
             if (w.instances and w.instances.mainFrame and w.instances.mainFrame:FindFirstChild('#scale')) then
@@ -5598,6 +7319,14 @@ do
         if (hint.instances and hint.instances.main) then
             hint.instances.main:Destroy()
         end
+        if (ui._watermarkFrame) then
+            ui._watermarkFrame:Destroy()
+            ui._watermarkFrame = nil
+        end
+        if (ui._keybindListFrame) then
+            ui._keybindListFrame:Destroy()
+            ui._keybindListFrame = nil
+        end
 
         ui:fireEvent('onDestroy')
         for _, v in pairs(ui.scriptCns) do
@@ -5659,6 +7388,241 @@ do
     end
 
     do
+        local function makeDraggableHud(frame, handle)
+            local dCon, aCon, eCon
+            local targetPos
+            handle.InputBegan:Connect(function(io)
+                if (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    local rootPos = frame.AbsolutePosition
+                    local startPos = Vector2.new(io.Position.X, io.Position.Y)
+                    targetPos = UDim2.fromOffset(rootPos.X, rootPos.Y)
+                    if (aCon) then aCon:Disconnect() end
+                    if (dCon) then dCon:Disconnect() end
+                    if (eCon) then eCon:Disconnect() end
+                    aCon = renderService.RenderStepped:Connect(function(dt)
+                        frame.Position = frame.Position:lerp(targetPos, 1 - animSpeed ^ dt)
+                    end)
+                    dCon = inputService.InputChanged:Connect(function(mio)
+                        if (mio.UserInputType == Enum.UserInputType.MouseMovement) then
+                            local dest = rootPos + (Vector2.new(mio.Position.X, mio.Position.Y) - startPos)
+                            targetPos = UDim2.fromOffset(dest.X, dest.Y)
+                        end
+                    end)
+                    eCon = inputService.InputEnded:Connect(function(eio)
+                        if (eio.UserInputType == Enum.UserInputType.MouseButton1) then
+                            if (dCon) then dCon:Disconnect(); dCon = nil end
+                            if (aCon) then aCon:Disconnect(); aCon = nil end
+                            if (eCon) then eCon:Disconnect(); eCon = nil end
+                            if (targetPos) then
+                                tween(frame, {Position = targetPos}, 0.16, 1)
+                            end
+                        end
+                    end)
+                end
+            end)
+        end
+
+        local wmFrame = create('Frame', {
+            Active = true,
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundColor3 = theme.Window1,
+            BorderSizePixel = 0,
+            Name = '#watermark',
+            Position = UDim2.fromOffset(16, 16),
+            Size = UDim2.fromOffset(0, 24),
+            Visible = false,
+            ZIndex = 2600
+        }, uiScreen)
+        create('UIScale', {Name = '#scale', Scale = currentScale}, wmFrame)
+        makeCorner(wmFrame, cornerPx)
+        makeStroke(wmFrame, theme.Stroke, 1)
+        local wmTrim = create('Frame', {
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BorderSizePixel = 0,
+            Name = '#trim',
+            Position = UDim2.fromOffset(0, -1),
+            Size = UDim2.new(1, 0, 0, 2),
+            ZIndex = 2602
+        }, wmFrame)
+        makeGradient(wmTrim, theme.Primary, theme.Secondary, 0)
+        local wmText = create('TextLabel', {
+            AutomaticSize = Enum.AutomaticSize.X,
+            BackgroundTransparency = 1,
+            Font = currentFont,
+            Name = '#text',
+            RichText = true,
+            Size = UDim2.fromOffset(0, 24),
+            Text = 'LARPWare',
+            TextColor3 = theme.TextPrimary,
+            TextSize = 12,
+            TextStrokeColor3 = theme.TextStroke,
+            TextStrokeTransparency = 0.85,
+            ZIndex = 2601
+        }, wmFrame)
+        create('UIPadding', {PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9)}, wmText)
+        makeDraggableHud(wmFrame, wmFrame)
+        ui._watermarkFrame = wmFrame
+
+        ui.setWatermark = function(text, visible)
+            wmText.Text = tostring(text or 'LARPWare')
+            if (visible ~= nil) then
+                wmFrame.Visible = visible and true or false
+            else
+                wmFrame.Visible = true
+            end
+            return wmFrame
+        end
+
+        ui.toggleWatermark = function(state)
+            if (state == nil) then
+                wmFrame.Visible = not wmFrame.Visible
+            else
+                wmFrame.Visible = state and true or false
+            end
+            return wmFrame.Visible
+        end
+
+        local kbFrame = create('Frame', {
+            Active = true,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = theme.Window2,
+            BorderSizePixel = 0,
+            Name = '#keybind-list',
+            Position = UDim2.fromOffset(16, 52),
+            Size = UDim2.fromOffset(176, 22),
+            Visible = false,
+            ZIndex = 2500
+        }, uiScreen)
+        create('UIScale', {Name = '#scale', Scale = currentScale}, kbFrame)
+        makeCorner(kbFrame, cornerPx)
+        makeStroke(kbFrame, theme.Stroke, 1)
+        local kbTrim = create('Frame', {
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BorderSizePixel = 0,
+            Name = '#trim',
+            Position = UDim2.fromOffset(0, -1),
+            Size = UDim2.new(1, 0, 0, 2),
+            ZIndex = 2503
+        }, kbFrame)
+        makeGradient(kbTrim, theme.Primary, theme.Secondary, 0)
+        local kbHeader = create('Frame', {
+            Active = true,
+            BackgroundColor3 = theme.Window1,
+            BorderSizePixel = 0,
+            Name = '#header',
+            Position = UDim2.fromOffset(0, 1),
+            Size = UDim2.new(1, 0, 0, 20),
+            ZIndex = 2501
+        }, kbFrame)
+        create('Frame', {
+            BackgroundColor3 = theme.Stroke,
+            BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 1, -1),
+            Size = UDim2.new(1, 0, 0, 1),
+            ZIndex = 2502
+        }, kbHeader)
+        local kbTitle = create('TextLabel', {
+            BackgroundTransparency = 1,
+            Font = currentFont,
+            Name = '#title',
+            Size = UDim2.fromScale(1, 1),
+            Text = 'keybinds',
+            TextColor3 = theme.TextPrimary,
+            TextSize = 11,
+            TextStrokeColor3 = theme.TextStroke,
+            TextStrokeTransparency = 0.85,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 2502
+        }, kbHeader)
+        create('UIPadding', {PaddingLeft = UDim.new(0, 7)}, kbTitle)
+        local kbBody = create('Frame', {
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            Name = '#body',
+            Position = UDim2.fromOffset(0, 21),
+            Size = UDim2.new(1, 0, 0, 0),
+            ZIndex = 2501
+        }, kbFrame)
+        create('UIListLayout', {
+            FillDirection = Enum.FillDirection.Vertical,
+            Padding = UDim.new(0, 2),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        }, kbBody)
+        create('UIPadding', {
+            PaddingTop = UDim.new(0, 4),
+            PaddingBottom = UDim.new(0, 5),
+            PaddingLeft = UDim.new(0, 7),
+            PaddingRight = UDim.new(0, 7)
+        }, kbBody)
+        makeDraggableHud(kbFrame, kbHeader)
+        ui._keybindListFrame = kbFrame
+
+        ui.refreshKeybindList = function()
+            if (not kbFrame or not kbFrame.Parent) then return end
+            for _, child in ipairs(kbBody:GetChildren()) do
+                if (child:IsA('Frame')) then
+                    child:Destroy()
+                end
+            end
+            for idx, hk in ipairs(ui.hotkeys) do
+                if (hk.hotkey) then
+                    local active = false
+                    if (hk.linkedControl and hk.linkedControl.class == 'toggle') then
+                        active = hk.linkedControl.toggled == true
+                    end
+                    local row = create('Frame', {
+                        BackgroundTransparency = 1,
+                        LayoutOrder = idx,
+                        Name = '#row',
+                        Size = UDim2.new(1, 0, 0, 15),
+                        ZIndex = 2502
+                    }, kbBody)
+                    create('TextLabel', {
+                        BackgroundTransparency = 1,
+                        Font = currentFont,
+                        Name = '#name',
+                        Size = UDim2.new(0.68, 0, 1, 0),
+                        Text = tostring(hk.name or 'bind'),
+                        TextColor3 = active and theme.TextPrimary or theme.TextDim,
+                        TextSize = 11,
+                        TextStrokeColor3 = theme.TextStroke,
+                        TextStrokeTransparency = 0.85,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        ZIndex = 2502
+                    }, row)
+                    create('TextLabel', {
+                        BackgroundTransparency = 1,
+                        Font = currentFont,
+                        Name = '#key',
+                        Position = UDim2.fromScale(0.68, 0),
+                        Size = UDim2.new(0.32, 0, 1, 0),
+                        Text = ('[%s]'):format(hk.hotkey.Name),
+                        TextColor3 = active and theme.Primary or theme.TextDim,
+                        TextSize = 10,
+                        TextStrokeColor3 = theme.TextStroke,
+                        TextStrokeTransparency = 0.85,
+                        TextXAlignment = Enum.TextXAlignment.Right,
+                        ZIndex = 2502
+                    }, row)
+                end
+            end
+        end
+
+        ui.toggleKeybindList = function(state)
+            if (state == nil) then
+                kbFrame.Visible = not kbFrame.Visible
+            else
+                kbFrame.Visible = state and true or false
+            end
+            if (kbFrame.Visible) then
+                ui.refreshKeybindList()
+            end
+            return kbFrame.Visible
+        end
+    end
+
+    do
         local hotkeys = ui.hotkeys
         ui.hkCon = inputService.InputBegan:Connect(function(io, gpe)
             if ((not gpe) and (io.UserInputType == Enum.UserInputType.Keyboard)) then
@@ -5668,7 +7632,12 @@ do
                     if (hk.hotkey == kc and hk.set ~= time()) then
                         local linkedControl = hk.linkedControl
                         if (linkedControl) then
-                            task.spawn(linkedControl.__hotkeyFunc, linkedControl)
+                            task.spawn(function()
+                                linkedControl.__hotkeyFunc(linkedControl)
+                                if (ui.refreshKeybindList) then
+                                    ui.refreshKeybindList()
+                                end
+                            end)
                         end
                     end
                 end

@@ -1,6 +1,6 @@
 # LARPWare
 
-Refined Roblox UI library forked and rebuilt from Dollarware with cleaner controls, a live font selector (`.code`, `.gotham`), full UI scaling, and a working dropdown control.
+Refined Roblox UI library rebuilt from Dollarware with crisp tactical dark styling, live font switching (`.code`, `.gotham`), full UI scaling, and an expanded control suite.
 
 ## Quick Start
 
@@ -15,9 +15,9 @@ local ui = uiLoader({
 })
 ```
 
-## New Features
+## Controls & Features
 
-- **Font Selector**: Switch live between `.code` (`Enum.Font.Code`) and `.gotham` (`Enum.Font.Gotham`) via `ui.setFont(ui.fonts.code)`, `section:addFontSelector()`, or the built-in titlebar appearance popover.
-- **UI Scaler**: Scale every window, control, color picker, tooltip, and notification cleanly (`0.5x` – `2.5x`) with exact mouse/resize math via `ui.setScale(1.25)`, `section:addUIScaler()`, or the built-in titlebar appearance popover.
-- **Dropdown**: Full `section:addDropdown({ text = '...', options = {...}, default = '...' }, callback)` support.
-- **Refined Controls**: Crisp procedural vector chrome, recessed checkbox indicators, two-tier precision sliders with right-click numeric input, bordered keybind badges, rectangular color swatches, focused textbox accent bars, and left-accented sidebar tabs.
+- **Core Controls**: `addLabel`, `addToggle` (supports inline `toggle:addHotkey()` & `toggle:addColorPicker()`), `addButton` (`small` / `large`), `addDualButton`, `addSlider` (right-click numeric input), `addRangeSlider`, `addColorPicker`, `addTextbox`, `addHotkey`, `addDropdown`, `addMultiDropdown`, `addSegmented`, `addListbox` (with live search filter), `addProgressBar`, `addDivider`, `addParagraph`.
+- **Font Selector**: Switch live between `.code` (`Enum.Font.Code`) and `.gotham` (`Enum.Font.Gotham`) via `ui.setFont(ui.fonts.code)`, `section:addFontSelector()`, or the titlebar appearance popover.
+- **UI Scaler**: Scale windows, color pickers, tooltips, notifications, and HUD panels (`0.5x` – `2.5x`) via `ui.setScale(1.25)`, `section:addUIScaler()`, or the titlebar appearance popover.
+- **Draggable HUD Panels**: `ui.setWatermark(text, visible)`, `ui.toggleWatermark(bool)`, and `ui.toggleKeybindList(bool)`.
