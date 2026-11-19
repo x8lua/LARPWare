@@ -406,17 +406,32 @@ do
     uiScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
     uiScreen.ResetOnSpawn = false
 
+    local chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local str = ''
-    for i = 1, 8 do
-        str = str .. utf8.char(math.random(97, 2500))
+    for i = 1, 14 do
+        local idx = math.random(1, #chars)
+        str = str .. chars:sub(idx, idx)
     end
     uiScreen.Name = str
 
-    if (gethui) then
-        uiScreen.Parent = gethui()
-    else
-        uiScreen.Parent = game:GetService('CoreGui')
+    local targetParent
+    if (typeof(gethui) == 'function') then
+        local ok, hui = pcall(gethui)
+        if (ok and typeof(hui) == 'Instance') then
+            targetParent = hui
+        end
     end
+    if (not targetParent) then
+        local ok, cg = pcall(function()
+            return game:GetService('CoreGui')
+        end)
+        if (ok and cg) then
+            targetParent = cg
+        else
+            targetParent = game:GetService('Players').LocalPlayer:WaitForChild('PlayerGui')
+        end
+    end
+    uiScreen.Parent = targetParent
 
     notifContainer = create('Frame', {
         Active = false,
