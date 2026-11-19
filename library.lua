@@ -3568,6 +3568,19 @@ do
 
             do
                 local mf = insts.mainFrame
+                local function isVisiblyHovered(gui, x, y)
+                    if (not gui or not gui.Parent) then return false end
+                    local cur = gui
+                    while (cur and cur:IsA('GuiObject')) do
+                        if (not cur.Visible) then return false end
+                        cur = cur.Parent
+                    end
+                    local ap = gui.AbsolutePosition
+                    local as = gui.AbsoluteSize
+                    if (as.X <= 0 or as.Y <= 0) then return false end
+                    return (x >= ap.X and x <= ap.X + as.X and y >= ap.Y and y <= ap.Y + as.Y)
+                end
+
                 new._wheelCon = inputService.InputChanged:Connect(function(io)
                     if (ui._terminated) then return end
                     if (io.UserInputType ~= Enum.UserInputType.MouseWheel) then return end
@@ -3587,6 +3600,9 @@ do
                         local overContent = pr and (mx >= pr.AbsolutePosition.X and mx <= pr.AbsolutePosition.X + pr.AbsoluteSize.X
                             and my >= pr.AbsolutePosition.Y and my <= pr.AbsolutePosition.Y + pr.AbsoluteSize.Y)
                         if (not overContent) then return end
+                        if (new.settingsOpen and isVisiblyHovered(insts.settingsPopover, mx, my)) then return end
+                        if (new.searchOpen and isVisiblyHovered(insts.searchResults, mx, my)) then return end
+
                         local activeMenu
                         for _, m in ipairs(new.menus) do
                             if (m.selected) then
@@ -3595,12 +3611,22 @@ do
                             end
                         end
                         local checkFrame = activeMenu and activeMenu.instances.menuFrame
-                        if (checkFrame) then
-                            local sc = (currentScale and currentScale > 0) and currentScale or 1
-                            local maxY = math.max(0, (checkFrame.AbsoluteCanvasSize.Y - checkFrame.AbsoluteWindowSize.Y) / sc)
-                            if (maxY <= 2 or checkFrame.CanvasPosition.Y >= maxY - 8) then
-                                new:setEasterEgg(true)
+                        if (not checkFrame) then return end
+
+                        if (uiScreen) then
+                            for _, desc in ipairs(uiScreen:GetDescendants()) do
+                                if (desc:IsA('ScrollingFrame') and desc ~= checkFrame and desc.ScrollingEnabled) then
+                                    if (isVisiblyHovered(desc, mx, my)) then
+                                        return
+                                    end
+                                end
                             end
+                        end
+
+                        local sc = (currentScale and currentScale > 0) and currentScale or 1
+                        local maxY = math.max(0, (checkFrame.AbsoluteCanvasSize.Y - checkFrame.AbsoluteWindowSize.Y) / sc)
+                        if (maxY <= 2 or checkFrame.CanvasPosition.Y >= maxY - 8) then
+                            new:setEasterEgg(true)
                         end
                     end
                 end)
