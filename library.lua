@@ -1815,24 +1815,15 @@ do
 
             local easterEgg = create('Frame', {
                 Active = false,
-                BackgroundColor3 = theme.Window1,
+                BackgroundColor3 = theme.Window2,
                 BorderSizePixel = 0,
                 ClipsDescendants = true,
                 Name = '#easter-egg',
                 Position = UDim2.new(0, 0, 1, 2),
-                Size = UDim2.new(1, 0, 0, 74),
+                Size = UDim2.new(1, 0, 0, 124),
                 Visible = false,
                 ZIndex = 44
             }, pageRegion)
-            local eeTrim = create('Frame', {
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BorderSizePixel = 0,
-                Name = '#trim',
-                Position = UDim2.fromOffset(0, 0),
-                Size = UDim2.new(1, 0, 0, 2),
-                ZIndex = 45
-            }, easterEgg)
-            makeGradient(eeTrim, theme.Primary, theme.Secondary, 0)
             create('ImageLabel', {
                 Active = false,
                 AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1841,9 +1832,9 @@ do
                 Image = easterEggAsset,
                 ImageTransparency = 0,
                 Name = '#logo',
-                Position = UDim2.fromScale(0.5, 0.52),
+                Position = UDim2.fromScale(0.5, 0.5),
                 ScaleType = Enum.ScaleType.Fit,
-                Size = UDim2.new(0.68, 0, 0, 46),
+                Size = UDim2.new(0.9, 0, 0, 96),
                 ZIndex = 45
             }, easterEgg)
 
@@ -2471,6 +2462,17 @@ do
             local ee = self.instances and self.instances.easterEgg
             if (not ee or not ee.Parent) then return self end
             local nextState = visible and (not self.minimized)
+            self._eeIdleId = (self._eeIdleId or 0) + 1
+            local idleId = self._eeIdleId
+
+            if (nextState) then
+                task.delay(0.55, function()
+                    if (not ui._terminated and self._eeIdleId == idleId and self.easterEggVisible) then
+                        self:setEasterEgg(false)
+                    end
+                end)
+            end
+
             if (self.easterEggVisible == nextState) then
                 return self
             end
@@ -2488,16 +2490,16 @@ do
 
             if (nextState) then
                 ee.Visible = true
-                tween(ee, {Position = UDim2.new(0, 0, 1, -74)}, 0.28, 1)
+                tween(ee, {Position = UDim2.new(0, 0, 1, -124)}, 0.26, 1)
                 if (activeMenu and activeMenu.instances and activeMenu.instances.menuFrame) then
-                    tween(activeMenu.instances.menuFrame, {Position = UDim2.new(0, 0, 0, -74)}, 0.28, 1)
+                    tween(activeMenu.instances.menuFrame, {Position = UDim2.new(0, 0, 0, -124)}, 0.26, 1)
                 end
             else
-                tween(ee, {Position = UDim2.new(0, 0, 1, 2)}, 0.14, 1)
+                tween(ee, {Position = UDim2.new(0, 0, 1, 2)}, 0.22, 1)
                 if (activeMenu and activeMenu.instances and activeMenu.instances.menuFrame) then
-                    tween(activeMenu.instances.menuFrame, {Position = UDim2.fromScale(0, 0)}, 0.14, 1)
+                    tween(activeMenu.instances.menuFrame, {Position = UDim2.fromScale(0, 0)}, 0.22, 1)
                 end
-                task.delay(0.15, function()
+                task.delay(0.23, function()
                     if (self._eeAnimId == animId and not self.easterEggVisible and ee and ee.Parent) then
                         ee.Visible = false
                     end
