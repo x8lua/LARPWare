@@ -19,6 +19,31 @@ do
 end
 
 local currentTextScale = 1
+local currentTransparency = 0
+local theme
+local rounding
+local cornerPx = 0
+
+local themeKeyOrder = {
+    'Primary', 'Secondary', 'StrokeHover',
+    'Window1', 'Window2', 'Window3',
+    'Button1', 'Button2', 'Button3', 'Button4',
+    'Stroke', 'Inset1', 'Inset2', 'Inset3',
+    'TextPrimary', 'TextDim', 'TextStroke'
+}
+
+local function findThemeKey(val)
+    if (typeof(val) ~= 'Color3' or typeof(theme) ~= 'table') then
+        return nil
+    end
+    for i = 1, #themeKeyOrder do
+        local k = themeKeyOrder[i]
+        if (theme[k] == val) then
+            return k
+        end
+    end
+    return nil
+end
 
 local function create(className, props, parent)
     local inst = Instance.new(className)
@@ -31,6 +56,20 @@ local function create(className, props, parent)
                 inst.TextSize = math.max(6, math.floor(v * currentTextScale + 0.5))
             else
                 inst[k] = v
+                if (typeof(v) == 'Color3' and typeof(theme) == 'table') then
+                    local tk = findThemeKey(v)
+                    if (tk) then
+                        if (k == 'BackgroundColor3') then
+                            inst:SetAttribute('ThemeBG', tk)
+                        elseif (k == 'TextColor3') then
+                            inst:SetAttribute('ThemeText', tk)
+                        elseif (k == 'ScrollBarImageColor3') then
+                            inst:SetAttribute('ThemeScroll', tk)
+                        elseif (k == 'BorderColor3') then
+                            inst:SetAttribute('ThemeBorder', tk)
+                        end
+                    end
+                end
             end
         end
     end
@@ -40,30 +79,43 @@ local function create(className, props, parent)
     return inst
 end
 
-local function makeCorner(parent, radius)
-    return create('UICorner', {
+local function makeCorner(parent, radius, fixed)
+    local c = create('UICorner', {
         Name = '#round',
         CornerRadius = UDim.new(0, radius)
     }, parent)
+    if (not fixed and radius == cornerPx) then
+        c:SetAttribute('ThemeCorner', true)
+    end
+    return c
 end
 
 local function makeStroke(parent, color, thickness)
-    return create('UIStroke', {
+    local s = create('UIStroke', {
         Name = '#stroke',
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
         Color = color,
         LineJoinMode = Enum.LineJoinMode.Miter,
         Thickness = thickness or 1
     }, parent)
+    local tk = findThemeKey(color)
+    if (tk) then
+        s:SetAttribute('ThemeStroke', tk)
+    end
+    return s
 end
 
 local function makeGradient(parent, c1, c2, rotation)
-    return create('UIGradient', {
+    local g = create('UIGradient', {
         Name = '#gradient',
         Color = ColorSequence.new(c1, c2),
         Rotation = rotation or 0,
         Enabled = true
     }, parent)
+    if (typeof(theme) == 'table' and c1 == theme.Primary and c2 == theme.Secondary) then
+        g:SetAttribute('ThemeAccentGrad', true)
+    end
+    return g
 end
 
 local function makeTopSheen(parent, zIndex)
@@ -84,9 +136,58 @@ local function blendColor(c1, c2, alpha)
 end
 
 local args = {...}
-local theme
-local rounding
 local animSpeed = 1e-12
+
+local function makePresetTheme(primary, secondary, surface)
+    local base = surface or Color3.fromRGB(11, 11, 12)
+    local function shift(c, d)
+        return Color3.new(
+            math.clamp(c.R + d, 0, 1),
+            math.clamp(c.G + d, 0, 1),
+            math.clamp(c.B + d, 0, 1)
+        )
+    end
+    return {
+        Primary = primary,
+        Secondary = secondary,
+
+        Window1 = shift(base, 0.012),
+        Window2 = shift(base, -0.012),
+        Window3 = base,
+
+        Button1 = shift(base, 0.018),
+        Button2 = shift(base, 0.042),
+        Button3 = blendColor(shift(base, 0.025), primary, 0.14),
+        Button4 = blendColor(shift(base, 0.045), primary, 0.22),
+
+        Stroke = shift(base, 0.075),
+        StrokeHover = blendColor(shift(base, 0.08), primary, 0.45),
+
+        Inset1 = shift(base, -0.02),
+        Inset2 = shift(base, -0.03),
+        Inset3 = shift(base, -0.024),
+
+        TextPrimary = Color3.fromRGB(240, 240, 244),
+        TextStroke = Color3.fromRGB(0, 0, 0),
+        TextDim = Color3.fromRGB(146, 146, 154),
+
+        ControlGradient1 = Color3.fromRGB(255, 255, 255),
+        ControlGradient2 = Color3.fromRGB(190, 190, 190)
+    }
+end
+
+local themePresets = {
+    crimson = makePresetTheme(Color3.fromRGB(168, 24, 36), Color3.fromRGB(108, 12, 22)),
+    cobalt = makePresetTheme(Color3.fromRGB(42, 122, 238), Color3.fromRGB(22, 68, 158)),
+    emerald = makePresetTheme(Color3.fromRGB(26, 184, 108), Color3.fromRGB(14, 108, 64)),
+    amber = makePresetTheme(Color3.fromRGB(228, 132, 28), Color3.fromRGB(154, 72, 14)),
+    violet = makePresetTheme(Color3.fromRGB(142, 74, 242), Color3.fromRGB(82, 34, 166)),
+    cherry = makePresetTheme(Color3.fromRGB(235, 28, 72), Color3.fromRGB(156, 14, 62)),
+    rose = makePresetTheme(Color3.fromRGB(214, 84, 122), Color3.fromRGB(128, 38, 68)),
+    monochrome = makePresetTheme(Color3.fromRGB(218, 222, 230), Color3.fromRGB(124, 130, 142))
+}
+local themePresetOrder = {'crimson', 'cobalt', 'emerald', 'amber', 'violet', 'cherry', 'rose', 'monochrome'}
+local currentThemeName = 'crimson'
 
 local fontMap = {}
 local fontDisplayNames = {}
@@ -589,7 +690,7 @@ do
     end
 end
 
-local cornerPx = rounding and 2 or 0
+cornerPx = rounding and 2 or 0
 
 local function getGlobalEnv()
     if (typeof(getgenv) == 'function') then
@@ -1457,6 +1558,7 @@ end)
 local fontListeners = {}
 local scaleListeners = {}
 local textScaleListeners = {}
+local themeListeners = {}
 
 local function emitFontChanged()
     for i = 1, #fontListeners do
@@ -1473,6 +1575,154 @@ end
 local function emitTextScaleChanged()
     for i = 1, #textScaleListeners do
         task.spawn(textScaleListeners[i], currentTextScale)
+    end
+end
+
+local function emitThemeChanged()
+    for i = 1, #themeListeners do
+        task.spawn(themeListeners[i], currentThemeName, theme)
+    end
+end
+
+local function makeTabGlyph(parent, hintStr, zIndex)
+    for _, ch in ipairs(parent:GetChildren()) do
+        ch:Destroy()
+    end
+    local key = tostring(hintStr or ''):lower()
+    local holder = create('Frame', {
+        Active = false,
+        BackgroundTransparency = 1,
+        Name = '#glyph',
+        Size = UDim2.fromScale(1, 1),
+        ZIndex = zIndex
+    }, parent)
+
+    if (key:find('combat') or key:find('aim') or key:find('rage') or key:find('legit') or key:find('weapon')) then
+        local ring = create('Frame', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Name = '#g-ring',
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(8, 8),
+            ZIndex = zIndex
+        }, holder)
+        makeCorner(ring, 5, true)
+        makeStroke(ring, theme.TextDim, 1)
+        for _, cfg in ipairs({
+            {UDim2.new(0.5, 0, 0, 1), UDim2.fromOffset(1, 3)},
+            {UDim2.new(0.5, 0, 1, -1), UDim2.fromOffset(1, 3)},
+            {UDim2.new(0, 1, 0.5, 0), UDim2.fromOffset(3, 1)},
+            {UDim2.new(1, -1, 0.5, 0), UDim2.fromOffset(3, 1)}
+        }) do
+            create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = theme.TextDim,
+                BorderSizePixel = 0,
+                Name = '#g-bar',
+                Position = cfg[1],
+                Size = cfg[2],
+                ZIndex = zIndex
+            }, holder)
+        end
+    elseif (key:find('visual') or key:find('esp') or key:find('world') or key:find('render') or key:find('cam')) then
+        local outer = create('Frame', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Name = '#g-diamond',
+            Position = UDim2.fromScale(0.5, 0.5),
+            Rotation = 45,
+            Size = UDim2.fromOffset(8, 8),
+            ZIndex = zIndex
+        }, holder)
+        makeStroke(outer, theme.TextDim, 1)
+        local core = create('Frame', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = theme.TextDim,
+            BorderSizePixel = 0,
+            Name = '#g-dot',
+            Position = UDim2.fromScale(0.5, 0.5),
+            Size = UDim2.fromOffset(3, 3),
+            ZIndex = zIndex
+        }, holder)
+        makeCorner(core, 2, true)
+    elseif (key:find('setting') or key:find('config') or key:find('theme') or key:find('system')) then
+        for idx, yPos in ipairs({3, 7, 11}) do
+            create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = theme.TextDim,
+                BorderSizePixel = 0,
+                Name = '#g-bar',
+                Position = UDim2.new(0.5, 0, 0, yPos),
+                Size = UDim2.fromOffset(10, 1),
+                ZIndex = zIndex
+            }, holder)
+            local knobX = (idx == 1 and 4) or (idx == 2 and 10) or 6
+            create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = theme.TextDim,
+                BorderSizePixel = 0,
+                Name = '#g-bar',
+                Position = UDim2.fromOffset(knobX, yPos),
+                Size = UDim2.fromOffset(3, 3),
+                ZIndex = zIndex + 1
+            }, holder)
+        end
+    elseif (key:find('misc') or key:find('move') or key:find('player') or key:find('util')) then
+        for _, cfg in ipairs({
+            {UDim2.fromOffset(4, 4), UDim2.fromOffset(4, 4)},
+            {UDim2.fromOffset(10, 4), UDim2.fromOffset(4, 4)},
+            {UDim2.fromOffset(4, 10), UDim2.fromOffset(4, 4)},
+            {UDim2.fromOffset(10, 10), UDim2.fromOffset(4, 4)}
+        }) do
+            local sq = create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Name = '#g-sq',
+                Position = cfg[1],
+                Size = cfg[2],
+                ZIndex = zIndex
+            }, holder)
+            makeStroke(sq, theme.TextDim, 1)
+        end
+    else
+        local box = create('Frame', {
+            Active = false,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Name = '#g-box',
+            Position = UDim2.fromScale(0.5, 0.5),
+            Rotation = 45,
+            Size = UDim2.fromOffset(7, 7),
+            ZIndex = zIndex
+        }, holder)
+        makeStroke(box, theme.TextDim, 1)
+    end
+    return holder
+end
+
+local function setTabGlyphColor(wrap, color, dur)
+    if (not wrap) then return end
+    for _, desc in ipairs(wrap:GetDescendants()) do
+        if (desc:IsA('UIStroke')) then
+            if (dur and dur > 0) then
+                tween(desc, {Color = color}, dur, 1)
+            else
+                desc.Color = color
+            end
+        elseif (desc:IsA('Frame') and desc.BackgroundTransparency < 0.5) then
+            if (dur and dur > 0) then
+                tween(desc, {BackgroundColor3 = color}, dur, 1)
+            else
+                desc.BackgroundColor3 = color
+            end
+        end
     end
 end
 
@@ -1814,8 +2064,8 @@ do
                 BorderSizePixel = 1,
                 ClipsDescendants = true,
                 Name = '#page-region',
-                Position = UDim2.new(0, 128, 0, 29),
-                Size = UDim2.new(1, -128, 1, -29),
+                Position = UDim2.new(0, 138, 0, 29),
+                Size = UDim2.new(1, -138, 1, -29),
                 Visible = true,
                 ZIndex = 30
             }, mainFrame)
@@ -1853,10 +2103,11 @@ do
                 ClipsDescendants = true,
                 Name = '#sidebar',
                 Position = UDim2.fromOffset(0, 29),
-                Size = UDim2.new(0, 128, 1, -29),
+                Size = UDim2.new(0, 138, 1, -29),
                 Visible = true,
                 ZIndex = 48
             }, mainFrame)
+            makeGradient(sideBar, Color3.fromRGB(255, 255, 255), Color3.fromRGB(214, 214, 220), 90)
             create('Frame', {
                 Name = '#right-line',
                 BackgroundColor3 = theme.Stroke,
@@ -1864,6 +2115,56 @@ do
                 Position = UDim2.new(1, -1, 0, 0),
                 Size = UDim2.new(0, 1, 1, 0),
                 ZIndex = 50
+            }, sideBar)
+
+            local navHeader = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#nav-header',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, -1, 0, 24),
+                ZIndex = 49
+            }, sideBar)
+            local navDot = create('Frame', {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = theme.Primary,
+                BorderSizePixel = 0,
+                Name = '#dot',
+                Position = UDim2.new(0, 10, 0.5, 0),
+                Size = UDim2.fromOffset(4, 4),
+                ZIndex = 50
+            }, navHeader)
+            makeCorner(navDot, 2, true)
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Position = UDim2.fromOffset(19, 0),
+                Size = UDim2.new(1, -24, 1, 0),
+                Text = 'NAVIGATION',
+                TextColor3 = theme.TextDim,
+                TextSize = 9,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 50
+            }, navHeader)
+            create('Frame', {
+                BackgroundColor3 = theme.Stroke,
+                BackgroundTransparency = 0.4,
+                BorderSizePixel = 0,
+                Name = '#sep',
+                Position = UDim2.new(0, 8, 1, -1),
+                Size = UDim2.new(1, -16, 0, 1),
+                ZIndex = 50
+            }, navHeader)
+
+            local menuClip = create('Frame', {
+                BackgroundTransparency = 1,
+                ClipsDescendants = true,
+                Name = '#menu-clip',
+                Position = UDim2.fromOffset(0, 24),
+                Size = UDim2.new(1, -1, 1, -50),
+                ZIndex = 49
             }, sideBar)
 
             local menu = create('ScrollingFrame', {
@@ -1883,7 +2184,7 @@ do
                 Size = UDim2.fromScale(1 / currentScale, 1 / currentScale),
                 TopImage = 'rbxassetid://9416839567',
                 ZIndex = 49
-            }, sideBar)
+            }, menuClip)
 
             create('UIScale', {
                 Name = '#content-scale',
@@ -1894,16 +2195,75 @@ do
                 FillDirection = Enum.FillDirection.Vertical,
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
                 Name = '#layout',
-                Padding = UDim.new(0, 4),
+                Padding = UDim.new(0, 5),
                 SortOrder = Enum.SortOrder.LayoutOrder,
                 VerticalAlignment = Enum.VerticalAlignment.Top
             }, menu)
 
             create('UIPadding', {
                 Name = '#padding',
-                PaddingTop = UDim.new(0, 6),
-                PaddingBottom = UDim.new(0, 6)
+                PaddingTop = UDim.new(0, 7),
+                PaddingBottom = UDim.new(0, 7)
             }, menu)
+
+            local sideFooter = create('TextButton', {
+                AutoButtonColor = false,
+                BackgroundColor3 = theme.Inset1,
+                BackgroundTransparency = 0.35,
+                BorderSizePixel = 0,
+                Name = '#sidebar-footer',
+                Position = UDim2.new(0, 0, 1, -26),
+                Size = UDim2.new(1, -1, 0, 26),
+                Text = '',
+                ZIndex = 49
+            }, sideBar)
+            create('Frame', {
+                BackgroundColor3 = theme.Stroke,
+                BackgroundTransparency = 0.25,
+                BorderSizePixel = 0,
+                Name = '#sep',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.new(1, 0, 0, 1),
+                ZIndex = 50
+            }, sideFooter)
+            local footDot = create('Frame', {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = theme.Primary,
+                BorderSizePixel = 0,
+                Name = '#dot',
+                Position = UDim2.new(0, 10, 0.5, 0),
+                Size = UDim2.fromOffset(5, 5),
+                ZIndex = 50
+            }, sideFooter)
+            makeCorner(footDot, 3, true)
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#brand',
+                Position = UDim2.fromOffset(20, 0),
+                Size = UDim2.new(0.62, -16, 1, 0),
+                Text = 'LARPWare',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 10,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 50
+            }, sideFooter)
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#ver',
+                Position = UDim2.new(0.62, 0, 0, 0),
+                Size = UDim2.new(0.38, -8, 1, 0),
+                Text = 'v2.2',
+                TextColor3 = theme.TextDim,
+                TextSize = 9,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 50
+            }, sideFooter)
 
             local resizeHandle = create('Frame', {
                 Active = true,
@@ -1936,7 +2296,7 @@ do
                 BorderSizePixel = 1,
                 Name = '#settings-popover',
                 Position = UDim2.new(1, -6, 0, 34),
-                Size = UDim2.fromOffset(214, 250),
+                Size = UDim2.fromOffset(214, 294),
                 Visible = false,
                 ZIndex = 80
             }, mainFrame)
@@ -2265,6 +2625,56 @@ do
                 Size = UDim2.new(0, 1, 1, 0),
                 ZIndex = 84
             }, tScaleFill)
+
+            local accentHeader = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#accent-header',
+                Position = UDim2.fromOffset(0, 218),
+                Size = UDim2.new(1, 0, 0, 14),
+                ZIndex = 82
+            }, popBody)
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#accent-label',
+                Size = UDim2.new(0.5, 0, 1, 0),
+                Text = 'accent',
+                TextColor3 = theme.TextDim,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 82
+            }, accentHeader)
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#accent-active',
+                Position = UDim2.fromScale(0.5, 0),
+                Size = UDim2.new(0.5, 0, 1, 0),
+                Text = currentThemeName,
+                TextColor3 = theme.TextPrimary,
+                TextSize = 10,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 82
+            }, accentHeader)
+
+            local accentSwatches = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#accent-swatches',
+                Position = UDim2.fromOffset(0, 236),
+                Size = UDim2.new(1, 0, 0, 20),
+                ZIndex = 82
+            }, popBody)
+            create('UIListLayout', {
+                FillDirection = Enum.FillDirection.Horizontal,
+                HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                Padding = UDim.new(0, 5),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                VerticalAlignment = Enum.VerticalAlignment.Center
+            }, accentSwatches)
 
             local searchResults = create('Frame', {
                 Active = true,
@@ -2623,6 +3033,21 @@ do
             return self
         end
 
+        window.setVisible = function(self, state)
+            local mf = self.instances and self.instances.mainFrame
+            if (not mf or not mf.Parent) then return self end
+            mf.Visible = state and true or false
+            return self
+        end
+
+        window.toggle = function(self)
+            local mf = self.instances and self.instances.mainFrame
+            if (not mf or not mf.Parent) then return self end
+            mf.Visible = not mf.Visible
+            return self
+        end
+        window.__hotkeyFunc = window.toggle
+
         window.setIcon = function(self, newIcon)
             local iconInst = self.instances.titleBar['#icon']
             local accentInst = self.instances.titleBar['#title-accent']
@@ -2705,11 +3130,22 @@ do
             insts.title = titleBar['#title']
             insts.gradient = insts.mainFrame['#trim']['#gradient']
             insts.sideBar = insts.mainFrame['#sidebar']
-            insts.tabMenu = insts.sideBar['#menu']
+            insts.sideFooter = insts.sideBar['#sidebar-footer']
+            insts.tabMenu = insts.sideBar['#menu-clip']['#menu']
             insts.tabMenu['#content-scale'].Scale = currentScale
             insts.tabMenu.Size = UDim2.fromScale(1 / currentScale, 1 / currentScale)
             insts.resizeHandle = insts.mainFrame['#resize-handle']
             insts.settingsPopover = insts.mainFrame['#settings-popover']
+
+            insts.sideFooter.MouseEnter:Connect(function()
+                tween(insts.sideFooter, {BackgroundTransparency = 0.1}, 0.16, 1)
+            end)
+            insts.sideFooter.MouseLeave:Connect(function()
+                tween(insts.sideFooter, {BackgroundTransparency = 0.35}, 0.16, 1)
+            end)
+            insts.sideFooter.MouseButton1Click:Connect(function()
+                new:toggleSettings()
+            end)
 
             if (showSettings == false) then
                 insts.buttonSettings.Visible = false
@@ -2912,9 +3348,48 @@ do
                     end
                 end)
 
+                local accentActiveLbl = popBody['#accent-header']['#accent-active']
+                local accentRow = popBody['#accent-swatches']
+                local swatchMap = {}
+                local quickPresets = {'crimson', 'cobalt', 'emerald', 'amber', 'violet', 'cherry', 'monochrome'}
+                for idx, pName in ipairs(quickPresets) do
+                    local preset = themePresets[pName]
+                    if (preset) then
+                        local sw = create('TextButton', {
+                            AutoButtonColor = false,
+                            BackgroundColor3 = preset.Primary,
+                            BorderSizePixel = 0,
+                            LayoutOrder = idx,
+                            Name = '#sw-' .. pName,
+                            Size = UDim2.fromOffset(22, 16),
+                            Text = '',
+                            ZIndex = 83
+                        }, accentRow)
+                        makeCorner(sw, cornerPx)
+                        local swStroke = makeStroke(sw, pName == currentThemeName and Color3.fromRGB(255, 255, 255) or theme.Stroke, 1)
+                        sw:SetAttribute('ThemeBG', nil)
+                        swStroke:SetAttribute('ThemeStroke', nil)
+                        swatchMap[pName] = sw
+                        sw.MouseButton1Click:Connect(function()
+                            ui.setThemePreset(pName)
+                        end)
+                    end
+                end
+
+                local function syncPopoverTheme(tName)
+                    accentActiveLbl.Text = tostring(tName or 'custom')
+                    for pName, sw in pairs(swatchMap) do
+                        local st = sw:FindFirstChild('#stroke')
+                        if (st) then
+                            tween(st, {Color = (pName == tName) and Color3.fromRGB(255, 255, 255) or theme.Stroke}, 0.14, 1)
+                        end
+                    end
+                end
+
                 syncPopoverFont(currentFontKey)
                 syncPopoverScale(currentScale)
                 syncPopoverTextScale(currentTextScale)
+                syncPopoverTheme(currentThemeName)
                 table.insert(fontListeners, function(fKey)
                     if (insts.mainFrame and insts.mainFrame.Parent) then
                         syncPopoverFont(fKey)
@@ -2923,6 +3398,11 @@ do
                 table.insert(scaleListeners, function(sc)
                     if (insts.mainFrame and insts.mainFrame.Parent) then
                         syncPopoverScale(sc)
+                    end
+                end)
+                table.insert(themeListeners, function(tName)
+                    if (insts.mainFrame and insts.mainFrame.Parent) then
+                        syncPopoverTheme(tName)
                     end
                 end)
                 table.insert(textScaleListeners, function(ts)
@@ -4255,33 +4735,93 @@ do
                 BackgroundColor3 = theme.Button1,
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
+                ClipsDescendants = true,
                 Font = currentFont,
                 Name = '#page-selector',
-                Size = UDim2.new(1, -12, 0, 24),
+                Size = UDim2.new(1, -14, 0, 30),
                 Text = '',
                 TextColor3 = theme.TextDim,
                 TextSize = 12,
-                TextStrokeColor3 = theme.TextStroke,
-                TextStrokeTransparency = 0.85,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextYAlignment = Enum.TextYAlignment.Center,
                 ZIndex = 52
             })
             makeCorner(pageSelector, cornerPx)
             local stroke = makeStroke(pageSelector, theme.Stroke, 1)
             stroke.Transparency = 1
-            create('UIPadding', {PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 6)}, pageSelector)
+
+            local activeBg = create('Frame', {
+                Active = false,
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Name = '#active-bg',
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 52
+            }, pageSelector)
+            create('UIGradient', {
+                Name = '#wash',
+                Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0.72),
+                    NumberSequenceKeypoint.new(0.55, 0.90),
+                    NumberSequenceKeypoint.new(1, 1)
+                }),
+                Rotation = 0
+            }, activeBg)
+
             local indicator = create('Frame', {
                 AnchorPoint = Vector2.new(0, 0.5),
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 Name = '#indicator',
-                Position = UDim2.new(0, -10, 0.5, 0),
-                Size = UDim2.new(0, 2, 0, 12),
-                ZIndex = 53
+                Position = UDim2.new(0, 0, 0.5, 0),
+                Size = UDim2.new(0, 3, 0, 6),
+                ZIndex = 54
             }, pageSelector)
+            makeCorner(indicator, 2, true)
             makeGradient(indicator, theme.Primary, theme.Secondary, 90)
+
+            create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundTransparency = 1,
+                Name = '#icon-wrap',
+                Position = UDim2.new(0, 9, 0.5, 0),
+                Size = UDim2.fromOffset(14, 14),
+                ZIndex = 54
+            }, pageSelector)
+
+            create('TextLabel', {
+                Active = false,
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Name = '#label',
+                Position = UDim2.fromOffset(29, 0),
+                Size = UDim2.new(1, -42, 1, 0),
+                Text = '',
+                TextColor3 = theme.TextDim,
+                TextSize = 12,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                ZIndex = 54
+            }, pageSelector)
+
+            local activeDot = create('Frame', {
+                Active = false,
+                AnchorPoint = Vector2.new(1, 0.5),
+                BackgroundColor3 = theme.Primary,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Name = '#active-dot',
+                Position = UDim2.new(1, -8, 0.5, 0),
+                Size = UDim2.fromOffset(4, 4),
+                ZIndex = 54
+            }, pageSelector)
+            makeCorner(activeDot, 2, true)
+
             instances.pageSelector = pageSelector
         end
         menu.instances = instances
@@ -4299,25 +4839,36 @@ do
 
             self.selected = true
             local ps = self.instances.pageSelector
+            local lbl = ps['#label']
             tween(ps, {
                 BackgroundColor3 = self.selectorFocused and theme.Button4 or theme.Button3,
-                BackgroundTransparency = 0,
-                TextColor3 = theme.TextPrimary
-            }, 0.18, 1)
-            tween(ps['#stroke'], {Color = theme.StrokeHover, Transparency = 0}, 0.18, 1)
-            tween(ps['#indicator'], {BackgroundTransparency = 0, Size = UDim2.new(0, 2, 0, 14)}, 0.2, 1)
+                BackgroundTransparency = 0.15
+            }, 0.2, 1)
+            tween(ps['#active-bg'], {BackgroundColor3 = theme.Primary, BackgroundTransparency = 0}, 0.22, 1)
+            tween(ps['#stroke'], {Color = theme.StrokeHover, Transparency = 0}, 0.2, 1)
+            tween(ps['#indicator'], {BackgroundTransparency = 0, Size = UDim2.new(0, 3, 0, 18)}, 0.24, 1)
+            tween(ps['#active-dot'], {BackgroundColor3 = theme.Primary, BackgroundTransparency = 0}, 0.22, 1)
+            tween(lbl, {TextColor3 = theme.TextPrimary, Position = UDim2.fromOffset(31, 0)}, 0.2, 1)
+            setTabGlyphColor(ps['#icon-wrap'], theme.Primary, 0.2)
         end
 
         menu.deselect = function(self)
             self.selected = false
             local ps = self.instances.pageSelector
+            local lbl = ps['#label']
             tween(ps, {
                 BackgroundColor3 = theme.Button2,
-                BackgroundTransparency = self.selectorFocused and 0 or 1,
-                TextColor3 = self.selectorFocused and theme.TextPrimary or theme.TextDim
+                BackgroundTransparency = self.selectorFocused and 0.35 or 1
             }, 0.18, 1)
-            tween(ps['#stroke'], {Color = theme.Stroke, Transparency = self.selectorFocused and 0 or 1}, 0.18, 1)
-            tween(ps['#indicator'], {BackgroundTransparency = 1, Size = UDim2.new(0, 2, 0, 6)}, 0.18, 1)
+            tween(ps['#active-bg'], {BackgroundTransparency = 1}, 0.18, 1)
+            tween(ps['#stroke'], {Color = theme.Stroke, Transparency = self.selectorFocused and 0.25 or 1}, 0.18, 1)
+            tween(ps['#indicator'], {BackgroundTransparency = 1, Size = UDim2.new(0, 3, 0, 6)}, 0.18, 1)
+            tween(ps['#active-dot'], {BackgroundTransparency = 1}, 0.16, 1)
+            tween(lbl, {
+                TextColor3 = self.selectorFocused and theme.TextPrimary or theme.TextDim,
+                Position = UDim2.fromOffset(self.selectorFocused and 31 or 29, 0)
+            }, 0.18, 1)
+            setTabGlyphColor(ps['#icon-wrap'], self.selectorFocused and theme.TextPrimary or theme.TextDim, 0.18)
         end
 
         menu.signals = {
@@ -4325,21 +4876,27 @@ do
                 MouseEnter = function(_, self)
                     self.selectorFocused = true
                     local ps = self.instances.pageSelector
+                    local lbl = ps['#label']
                     if (self.selected) then
-                        tween(ps, {BackgroundColor3 = theme.Button4}, 0.16, 1)
+                        tween(ps, {BackgroundColor3 = theme.Button4, BackgroundTransparency = 0.05}, 0.16, 1)
                     else
-                        tween(ps, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0, TextColor3 = theme.TextPrimary}, 0.16, 1)
-                        tween(ps['#stroke'], {Color = theme.Stroke, Transparency = 0}, 0.16, 1)
+                        tween(ps, {BackgroundColor3 = theme.Button2, BackgroundTransparency = 0.35}, 0.16, 1)
+                        tween(ps['#stroke'], {Color = theme.Stroke, Transparency = 0.25}, 0.16, 1)
+                        tween(lbl, {TextColor3 = theme.TextPrimary, Position = UDim2.fromOffset(31, 0)}, 0.16, 1)
+                        setTabGlyphColor(ps['#icon-wrap'], theme.TextPrimary, 0.16)
                     end
                 end,
                 MouseLeave = function(_, self)
                     self.selectorFocused = false
                     local ps = self.instances.pageSelector
+                    local lbl = ps['#label']
                     if (self.selected) then
-                        tween(ps, {BackgroundColor3 = theme.Button3}, 0.16, 1)
+                        tween(ps, {BackgroundColor3 = theme.Button3, BackgroundTransparency = 0.15}, 0.16, 1)
                     else
-                        tween(ps, {BackgroundTransparency = 1, TextColor3 = theme.TextDim}, 0.16, 1)
+                        tween(ps, {BackgroundTransparency = 1}, 0.16, 1)
                         tween(ps['#stroke'], {Transparency = 1}, 0.16, 1)
+                        tween(lbl, {TextColor3 = theme.TextDim, Position = UDim2.fromOffset(29, 0)}, 0.16, 1)
+                        setTabGlyphColor(ps['#icon-wrap'], theme.TextDim, 0.16)
                     end
                 end
             }
@@ -4389,7 +4946,8 @@ do
             menuTab.MouseButton1Click:Connect(function()
                 m:select()
             end)
-            menuTab.Text = s_text
+            menuTab['#label'].Text = s_text
+            makeTabGlyph(menuTab['#icon-wrap'], settings.icon or s_text, 54)
             menuFrame.Position = UDim2.fromScale(0, m.id - 1)
 
             menuTab.Parent = self.instances.tabMenu
@@ -7152,9 +7710,16 @@ do
         hotkey.inputCon = nil
 
         hotkey.click = function(self)
-            if (self.inputCon) then return self end
             local display = self.instances.hotkey
             local badge = self.instances.badge
+            if (self.inputCon) then
+                self.inputCon:Disconnect()
+                self.inputCon = nil
+                display.Text = self.hotkey and ('[%s]'):format(self.hotkey.Name) or '[None]'
+                tween(display, {TextColor3 = self.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+                tween(badge['#stroke'], {Color = self.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+                return self
+            end
 
             display.Text = '[...]'
             tween(display, {TextColor3 = theme.Primary}, 0.16, 1)
@@ -9056,7 +9621,7 @@ do
 
         if (elemClasses) then
             if (elemClasses.window and elemClasses.window.instances.mainFrame) then
-                local tm = elemClasses.window.instances.mainFrame['#sidebar']['#menu']
+                local tm = elemClasses.window.instances.mainFrame['#sidebar']['#menu-clip']['#menu']
                 if (tm:FindFirstChild('#content-scale')) then
                     tm['#content-scale'].Scale = currentScale
                     tm.Size = UDim2.fromScale(inv, inv)
@@ -9240,6 +9805,7 @@ do
         table.clear(fontListeners)
         table.clear(scaleListeners)
         table.clear(textScaleListeners)
+        table.clear(themeListeners)
         table.clear(easterEggLabels)
 
         if (elemClasses) then
@@ -9357,11 +9923,269 @@ do
         end
     end
 
-    ui.setTheme = function(newTheme)
-        if (typeof(newTheme) ~= 'table') then
+    local function applyThemeToTree(root)
+        if (not root) then return end
+        local function applyOne(inst)
+            if (inst:IsA('UIGradient') and inst:GetAttribute('ThemeAccentGrad') == true) then
+                inst.Color = ColorSequence.new(theme.Primary, theme.Secondary)
+                return
+            end
+            if (inst:IsA('UIStroke')) then
+                local sk = inst:GetAttribute('ThemeStroke')
+                if (sk and theme[sk]) then
+                    inst.Color = theme[sk]
+                end
+                return
+            end
+            local bgk = inst:GetAttribute('ThemeBG')
+            if (bgk and theme[bgk] and inst:IsA('GuiObject')) then
+                inst.BackgroundColor3 = theme[bgk]
+            end
+            local bdk = inst:GetAttribute('ThemeBorder')
+            if (bdk and theme[bdk] and inst:IsA('GuiObject')) then
+                inst.BorderColor3 = theme[bdk]
+            end
+            local tk = inst:GetAttribute('ThemeText')
+            if (tk and theme[tk] and (inst:IsA('TextLabel') or inst:IsA('TextButton') or inst:IsA('TextBox'))) then
+                inst.TextColor3 = theme[tk]
+            end
+            local sck = inst:GetAttribute('ThemeScroll')
+            if (sck and theme[sck] and inst:IsA('ScrollingFrame')) then
+                inst.ScrollBarImageColor3 = theme[sck]
+            end
+        end
+        applyOne(root)
+        for _, desc in ipairs(root:GetDescendants()) do
+            applyOne(desc)
+        end
+    end
+
+    local function resyncDynamicThemeStates()
+        for _, w in ipairs(windows) do
+            if (w.instances and w.instances.mainFrame and w.instances.mainFrame.Parent) then
+                if (w.settingsOpen and w.instances.buttonSettings) then
+                    w.instances.buttonSettings.BackgroundColor3 = theme.Button3
+                    w.instances.buttonSettings['#stroke'].Color = theme.Primary
+                end
+                if (w.searchOpen and w.instances.buttonSearch) then
+                    w.instances.buttonSearch.BackgroundColor3 = theme.Button3
+                    w.instances.buttonSearch['#stroke'].Color = theme.Primary
+                end
+                if (w.instances.mainFrame:FindFirstChild('#background')) then
+                    w.instances.mainFrame['#background'].BackgroundTransparency = currentTransparency
+                end
+                if (w.instances.pageRegion) then
+                    w.instances.pageRegion.BackgroundTransparency = currentTransparency * 0.65
+                end
+                if (w.instances.sideBar) then
+                    w.instances.sideBar.BackgroundTransparency = currentTransparency * 0.55
+                end
+            end
+            for _, m in ipairs(w.menus or {}) do
+                local ps = m.instances and m.instances.pageSelector
+                if (ps and ps.Parent) then
+                    if (m.selected) then
+                        ps.BackgroundColor3 = theme.Button3
+                        ps['#active-bg'].BackgroundColor3 = theme.Primary
+                        ps['#stroke'].Color = theme.StrokeHover
+                        ps['#active-dot'].BackgroundColor3 = theme.Primary
+                        ps['#label'].TextColor3 = theme.TextPrimary
+                        setTabGlyphColor(ps['#icon-wrap'], theme.Primary, 0)
+                    else
+                        ps['#label'].TextColor3 = theme.TextDim
+                        setTabGlyphColor(ps['#icon-wrap'], theme.TextDim, 0)
+                    end
+                end
+                for _, sec in ipairs(m.sections or {}) do
+                    for _, ctrl in ipairs(sec.controls or {}) do
+                        if (ctrl.class == 'toggle' and ctrl.instances and ctrl.instances.label) then
+                            ctrl.instances.label.TextColor3 = ctrl.toggled and theme.TextPrimary or blendColor(theme.TextDim, theme.TextPrimary, 0.45)
+                            if (ctrl.instances.box and ctrl.instances.box:FindFirstChild('#stroke')) then
+                                ctrl.instances.box['#stroke'].Color = ctrl.toggled and theme.Primary or theme.Stroke
+                            end
+                        elseif (ctrl.class == 'segmented' and ctrl.optionButtons) then
+                            for opt, btn in pairs(ctrl.optionButtons) do
+                                local active = (ctrl.value == opt)
+                                btn.BackgroundColor3 = active and theme.Button3 or theme.Inset1
+                                btn.TextColor3 = active and theme.TextPrimary or theme.TextDim
+                            end
+                        elseif (ctrl.class == 'listbox' and ctrl.itemButtons) then
+                            for item, btn in pairs(ctrl.itemButtons) do
+                                local active = (ctrl.value == item)
+                                btn.BackgroundColor3 = active and theme.Button3 or theme.Button1
+                                btn.TextColor3 = active and theme.TextPrimary or theme.TextDim
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        if (ui.refreshKeybindList) then
+            ui.refreshKeybindList()
+        end
+    end
+
+    ui.getTheme = function()
+        local copy = {}
+        for k, v in pairs(theme) do
+            copy[k] = v
+        end
+        return copy
+    end
+
+    ui.getThemes = function()
+        local out = {}
+        for i = 1, #themePresetOrder do
+            out[i] = themePresetOrder[i]
+        end
+        return out
+    end
+
+    ui.getThemeName = function()
+        return currentThemeName
+    end
+
+    ui.applyTheme = function(patch, presetName)
+        if (typeof(patch) ~= 'table') then
             return error('expected type table for theme', 2)
         end
-        theme = newTheme
+        for k, v in pairs(patch) do
+            theme[k] = v
+        end
+        if (presetName) then
+            currentThemeName = presetName
+        else
+            currentThemeName = 'custom'
+        end
+        if (uiScreen) then
+            applyThemeToTree(uiScreen)
+        end
+        if (elemClasses) then
+            for _, cls in pairs(elemClasses) do
+                if (typeof(cls) == 'table' and cls.instances) then
+                    for _, inst in pairs(cls.instances) do
+                        if (typeof(inst) == 'Instance') then
+                            applyThemeToTree(inst)
+                        end
+                    end
+                end
+            end
+        end
+        resyncDynamicThemeStates()
+        emitThemeChanged()
+        return ui.getTheme()
+    end
+
+    ui.setTheme = function(newTheme)
+        if (typeof(newTheme) == 'string') then
+            return ui.setThemePreset(newTheme)
+        end
+        return ui.applyTheme(newTheme)
+    end
+
+    ui.setThemePreset = function(name)
+        local key = tostring(name or ''):lower()
+        local preset = themePresets[key]
+        if (not preset) then
+            return ui.getTheme()
+        end
+        return ui.applyTheme(preset, key)
+    end
+
+    ui.setAccent = function(primary, secondary)
+        if (typeof(primary) ~= 'Color3') then
+            return error('expected Color3 for primary accent', 2)
+        end
+        local sec = (typeof(secondary) == 'Color3') and secondary or blendColor(primary, Color3.fromRGB(0, 0, 0), 0.38)
+        local base = theme.Window3 or Color3.fromRGB(11, 11, 12)
+        local function shift(c, d)
+            return Color3.new(math.clamp(c.R + d, 0, 1), math.clamp(c.G + d, 0, 1), math.clamp(c.B + d, 0, 1))
+        end
+        return ui.applyTheme({
+            Primary = primary,
+            Secondary = sec,
+            Button3 = blendColor(shift(base, 0.025), primary, 0.14),
+            Button4 = blendColor(shift(base, 0.045), primary, 0.22),
+            StrokeHover = blendColor(shift(base, 0.08), primary, 0.45)
+        }, 'custom')
+    end
+
+    ui.setSurfaceColor = function(baseColor)
+        if (typeof(baseColor) ~= 'Color3') then
+            return error('expected Color3 for surface color', 2)
+        end
+        local derived = makePresetTheme(theme.Primary, theme.Secondary, baseColor)
+        derived.TextPrimary = theme.TextPrimary
+        derived.TextDim = theme.TextDim
+        derived.TextStroke = theme.TextStroke
+        return ui.applyTheme(derived, 'custom')
+    end
+
+    ui.setThemeColor = function(key, color)
+        if (typeof(key) ~= 'string' or typeof(color) ~= 'Color3') then
+            return error('expected (string, Color3) for setThemeColor', 2)
+        end
+        if (key == 'Primary') then
+            return ui.setAccent(color, theme.Secondary)
+        elseif (key == 'Secondary') then
+            return ui.setAccent(theme.Primary, color)
+        end
+        return ui.applyTheme({[key] = color}, 'custom')
+    end
+
+    ui.getTransparency = function()
+        return currentTransparency
+    end
+
+    ui.setTransparency = function(alpha)
+        if (typeof(alpha) ~= 'number') then
+            return error('expected number for transparency', 2)
+        end
+        currentTransparency = math.clamp(alpha, 0, 0.45)
+        resyncDynamicThemeStates()
+        return currentTransparency
+    end
+
+    ui.setRounding = function(enabled)
+        rounding = enabled and true or false
+        cornerPx = rounding and 4 or 0
+        local function updateCorners(root)
+            if (not root) then return end
+            for _, desc in ipairs(root:GetDescendants()) do
+                if (desc:IsA('UICorner') and desc:GetAttribute('ThemeCorner') == true) then
+                    desc.CornerRadius = UDim.new(0, cornerPx)
+                end
+            end
+        end
+        updateCorners(uiScreen)
+        if (elemClasses) then
+            for _, cls in pairs(elemClasses) do
+                if (typeof(cls) == 'table' and cls.instances) then
+                    for _, inst in pairs(cls.instances) do
+                        if (typeof(inst) == 'Instance') then
+                            updateCorners(inst)
+                        end
+                    end
+                end
+            end
+        end
+        return rounding
+    end
+
+    ui.setSmoothDragging = function(enabled)
+        animSpeed = (enabled and true or false) and 1e-12 or 0
+        return enabled and true or false
+    end
+
+    ui.resetTheme = function()
+        ui.setThemePreset('crimson')
+        ui.setFont('buildermono')
+        ui.setScale(1)
+        ui.setTextScale(1)
+        ui.setTransparency(0)
+        ui.setRounding(false)
+        ui.setSmoothDragging(false)
+        return ui.getTheme()
     end
 
     ui.notify = function(settings)

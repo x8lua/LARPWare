@@ -9,7 +9,7 @@ local ui = uiLoader({
 })
 
 ui.autoDisableToggles = true
-ui.setWatermark('LARPWare | v2.1 | build 1119', true)
+ui.setWatermark('LARPWare | v2.2 | build 1119', true)
 ui.toggleKeybindList(true)
 
 local window = ui.newWindow({
@@ -481,10 +481,10 @@ local settingsMenu = window:addMenu({
 })
 do
     local appearance = settingsMenu:addSection({
-        text = 'interface',
+        text = 'appearance & theme',
         side = 'left',
         showMinButton = true,
-        tooltip = 'Fonts, inner content scaling, text scaling, and HUD toggles'
+        tooltip = 'Fonts, scaling, live accent colors, surface palette, and window style'
     })
     do
         appearance:addFontSelector({
@@ -516,9 +516,115 @@ do
             tooltip = 'Scales every text label, button, and input across the entire UI'
         })
 
-        appearance:addDivider('hud overlays')
+        appearance:addDivider('theme & colors')
+
+        appearance:addDropdown({
+            text = 'theme preset',
+            options = ui.getThemes(),
+            default = ui.getThemeName(),
+            tooltip = 'Instantly switch between built-in tactical color palettes'
+        }, function(preset)
+            ui.setThemePreset(preset)
+        end)
+
+        appearance:addColorPicker({
+            text = 'accent primary',
+            color = ui.getTheme().Primary,
+            tooltip = 'Live-updates primary accent color, indicators, sliders, and trims'
+        }, function(c)
+            ui.setAccent(c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'accent secondary',
+            color = ui.getTheme().Secondary,
+            tooltip = 'Live-updates the secondary gradient stop across accents'
+        }, function(c)
+            ui.setThemeColor('Secondary', c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'window surface',
+            color = ui.getTheme().Window3,
+            tooltip = 'Recolors the obsidian window, sidebar, and inset surfaces live'
+        }, function(c)
+            ui.setSurfaceColor(c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'border stroke',
+            color = ui.getTheme().Stroke,
+            tooltip = 'Live-updates panel and control border line colors'
+        }, function(c)
+            ui.setThemeColor('Stroke', c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'primary text',
+            color = ui.getTheme().TextPrimary,
+            tooltip = 'Live-updates main label and title text color'
+        }, function(c)
+            ui.setThemeColor('TextPrimary', c)
+        end)
+
+        appearance:addDivider('window style')
+
+        appearance:addSlider({
+            text = 'transparency',
+            min = 0,
+            max = 0.45,
+            step = 0.01,
+            val = 0,
+            tooltip = 'Adjusts window backdrop translucency in real time'
+        }, function(v)
+            ui.setTransparency(v)
+        end)
 
         appearance:addToggle({
+            text = 'corner rounding',
+            state = false,
+            tooltip = 'Switches between sharp tactical edges and soft rounded corners live'
+        }, function(state)
+            ui.setRounding(state)
+        end)
+
+        appearance:addToggle({
+            text = 'smooth dragging',
+            state = false,
+            tooltip = 'Enables spring-interpolated inertia while dragging the window'
+        }, function(state)
+            ui.setSmoothDragging(state)
+        end)
+
+        appearance:addButton({
+            text = 'reset appearance',
+            style = 'small',
+            tooltip = 'Restores default dark-crimson palette, Builder Mono font, and 1.0x scale'
+        }, function()
+            ui.resetTheme()
+            ui.notify({
+                title = 'appearance',
+                message = 'Restored default LARPWare crimson styling',
+                duration = 2
+            })
+        end)
+    end
+
+    local cfgSec = settingsMenu:addSection({
+        text = 'hud, binds & configs',
+        side = 'right',
+        showMinButton = true,
+        tooltip = 'Menu hotkey, HUD overlays, config profiles, and safe unload'
+    })
+    do
+        local menuKey = cfgSec:addHotkey({
+            text = 'toggle menu bind',
+            bind = Enum.KeyCode.RightShift,
+            tooltip = 'Show or hide the window. Click twice while listening to cancel input.'
+        })
+        menuKey:linkToControl(window)
+
+        cfgSec:addToggle({
             text = 'watermark',
             state = true,
             tooltip = 'Toggles the draggable top-left LARPWare status bar'
@@ -526,7 +632,7 @@ do
             ui.toggleWatermark(state)
         end)
 
-        appearance:addToggle({
+        cfgSec:addToggle({
             text = 'keybind list',
             state = true,
             tooltip = 'Toggles the draggable active keybinds HUD overlay'
@@ -534,7 +640,7 @@ do
             ui.toggleKeybindList(state)
         end)
 
-        appearance:addTextbox({
+        cfgSec:addTextbox({
             text = 'watermark text',
             placeholder = 'custom watermark...',
             tooltip = 'Press Enter to customize the watermark label text'
@@ -543,15 +649,9 @@ do
                 ui.setWatermark(text, true)
             end
         end)
-    end
 
-    local cfgSec = settingsMenu:addSection({
-        text = 'configs & system',
-        side = 'right',
-        showMinButton = false,
-        tooltip = 'Profile presets and notification diagnostics'
-    })
-    do
+        cfgSec:addDivider('profiles')
+
         local cfgName = cfgSec:addTextbox({
             text = 'config name',
             placeholder = 'new config name...',
@@ -590,11 +690,11 @@ do
         local notifyKey = cfgSec:addHotkey({
             text = 'test notify bind',
             bind = Enum.KeyCode.G,
-            tooltip = 'Press this key anytime to trigger the linked test notification'
+            tooltip = 'Press this key anytime to trigger the linked test notification. Click twice to cancel.'
         })
         notifyKey:linkToControl(cfgSec:addButton({
             text = 'send test notification',
-            style = 'large',
+            style = 'small',
             tooltip = 'Dispatches a sample toast notification in the bottom-right corner'
         }, function()
             ui.notify({
@@ -604,10 +704,18 @@ do
             })
         end))
 
+        cfgSec:addButton({
+            text = 'unload & terminate ui',
+            style = 'large',
+            tooltip = 'Cleanly terminates all connections, toggles, keybinds, and removes the UI'
+        }, function()
+            ui.terminate()
+        end)
+
         cfgSec:addParagraph({
-            title = 'LARPWare v2.1',
-            content = 'Dark crimson tactical UI library with 130+ searchable fonts, inner content & global text scaling, animated collapsible sections, top-bar global search, element tooltips, and a hidden overscroll easter egg.',
-            tooltip = 'Try scrolling past the bottom of any tab!'
+            title = 'LARPWare v2.2',
+            content = 'Tactical dark-crimson UI with Builder Mono default, vector tab rail, live theme & accent color engine, 130+ fonts, global search, animated sections, and duplicate-session guard.',
+            tooltip = 'Scroll past the bottom of any tab to reveal the LARP easter egg'
         })
     end
 end
