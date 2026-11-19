@@ -1,28 +1,34 @@
 # LARPWare
 
-Refined dark-crimson Roblox UI library rebuilt from Dollarware with live font switching (built-in + Creator Store fonts), inner content scaling, global text scaling, top-bar control search, animated collapsible sections, element tooltips, and a hidden overscroll easter egg.
+Refined dark-crimson tactical Roblox UI library with `Builder Mono` default typography, a sliding active-pill tabbar, live theme/color/font/scale engines, top-bar global control search, animated collapsible sections, tooltips on every element, an in-window `L A R P` launch intro, and a duplicate-instance guard with full process termination.
+
+> Full API reference and starter template: **[DOCS.md](./DOCS.md)**
 
 ## Quick Start
 
 ```lua
-local uiLoader = loadstring(game:HttpGet('https://api.x8stuff.lol/larpware/library.lua'))
+local uiLoader = loadstring(game:HttpGet('https://api.x8stuff.lol/larpware/library.lua?t=' .. tostring(os.time())))
 local ui = uiLoader({
     rounding = false,
     smoothDragging = false,
     font = 'buildermono',
     scale = 1,
-    textScale = 1
+    textScale = 1,
+    intro = true
 })
 ```
 
-## Controls & Features
+Try the full showcase directly:
 
-- **Core Controls**: `addLabel`, `addToggle` (supports inline `toggle:addHotkey()` & `toggle:addColorPicker()`), `addButton` (`small` / `large`), `addDualButton`, `addSlider` (inline bar value + right-click numeric input), `addRangeSlider`, `addColorPicker`, `addTextbox`, `addHotkey`, `addDropdown`, `addMultiDropdown`, `addSegmented`, `addListbox` (with live search filter), `addProgressBar`, `addDivider`, `addParagraph`, `addUIScaler`, `addTextScaler`, `addFontSelector`.
-- **Duplicate Instance Guard**: Re-executing while an active LARPWare UI exists opens a dark-crimson confirmation modal (`cancel [esc]` / `proceed & terminate [enter]`). Proceeding cleanly terminates all toggles, hotkeys, connections, tracked threads (`ui.trackConnection`, `ui.trackThread`), and UI elements from the previous instance before starting the new one.
-- **Tooltips Everywhere**: Every section and control supports `tooltip = '...'` in its settings table as well as `:setTooltip('...')` chaining, with automatic text-scale sizing.
-- **Top-Bar Global Search**: Click the magnifying glass icon in the titlebar to search every control across all tabs, auto-switch tabs, expand minimized sections, scroll to the match, and flash-highlight it.
-- **Animated Collapsible Sections**: Smooth height, slide, chevron rotation, accent trim, and separator fade transitions with rapid-click race protection.
-- **Full Font Library (Built-in + Marketplace)**: Defaults to `Builder Mono`, and includes every built-in `Enum.Font` plus all 91 official Roblox Creator Store fonts (`Builder Mono`, `Builder Sans`, `Inter`, `IBM Plex Sans JP`, `Fira Sans`, `Barlow`, `Rajdhani`, `Sono Monospace`, `Silkscreen`, `DotGothic16`, `Work Sans`, `Montserrat`, `Poppins`, `Open Sans`, `Lato`, and more) with a live-preview searchable picker in both `section:addFontSelector()` and the titlebar appearance popover.
-- **UI & Text Scalers**: Scale everything inside the main UI without resizing the outer window (`ui.setScale(1.15)` / `section:addUIScaler()`) and scale all UI text globally (`ui.setTextScale(1.15)` / `section:addTextScaler()`), both also accessible live from the titlebar settings popover.
-- **Draggable HUD Panels**: `ui.setWatermark(text, visible)`, `ui.toggleWatermark(bool)`, and `ui.toggleKeybindList(bool)`.
-- **In-Content Overscroll Easter Egg**: Automatically caches `assets/larp.png` into the executor workspace (`LARPWare/larp.png`) via `getcustomasset`. Scrolling past the bottom of a tab reveals the hidden LARP banner directly inside the bottom of the content frame, and scrolling back up immediately tucks it away.
+```lua
+loadstring(game:HttpGet('https://api.x8stuff.lol/larpware/example.lua?t=' .. tostring(os.time())))()
+```
+
+## Highlights
+
+- **Premium Tactical Tabbar**: Vector tab icons, `NAVIGATION` header, liquid-sliding active highlight pill with elastic accent indicator, and clickable version footer.
+- **In-Window `L A R P` Intro**: Optically aligned chrome-blue 4-letter launch sequence rendered cleanly inside the UI window (skippable on click, replayable via `ui.playIntro()` / `win:playIntro()`).
+- **Live Theme & Color Engine**: 8 built-in presets (`crimson`, `cobalt`, `emerald`, `amber`, `violet`, `cherry`, `rose`, `monochrome`), live primary/secondary/surface/stroke/text pickers, live transparency, live corner rounding, and 7 quick swatches in the titlebar popover.
+- **Full Font & Scale Suite**: `Builder Mono` default + 130+ built-in and Creator Store fonts with live-preview search, inner content scaler (`ui.setScale`), and global text scaler (`ui.setTextScale`).
+- **Duplicate Instance Guard**: Centered dark-crimson confirmation modal (`cancel [esc]` / `proceed & terminate [enter]`) that cleanly disables old toggles, disconnects tracked connections, cancels tracked threads, and destroys the old session before launching.
+- **Complete Control Suite**: `addToggle` (inline hotkey & color picker), `addButton`, `addDualButton`, `addSlider` (inline value + right-click input), `addRangeSlider`, `addDropdown`, `addMultiDropdown`, `addSegmented`, `addColorPicker`, `addTextbox`, `addHotkey` (double-click to cancel), `addListbox`, `addProgressBar`, `addLabel`, `addDivider`, `addParagraph`, `addFontSelector`, `addUIScaler`, `addTextScaler`.
