@@ -3542,6 +3542,10 @@ do
             return self
         end
 
+        window.getSettingsMenu = function(self)
+            return self._defaultSettingsMenu
+        end
+
         window.setIcon = function(self, newIcon)
             local iconInst = self.instances.titleBar['#icon']
             local accentInst = self.instances.titleBar['#title-accent']
@@ -5436,9 +5440,18 @@ do
             local m = menu:new()
             m.window = self
             m.name = s_text
-            table.insert(self.menus, m)
 
-            m.id = #self.menus
+            if (self._defaultSettingsMenu and not settings._isDefaultSettings) then
+                local defIdx = table.find(self.menus, self._defaultSettingsMenu)
+                if (defIdx) then
+                    table.insert(self.menus, defIdx, m)
+                else
+                    table.insert(self.menus, m)
+                end
+            else
+                table.insert(self.menus, m)
+            end
+
             local menuTab = m.instances.pageSelector
             local menuFrame = m.instances.menuFrame
 
@@ -5447,7 +5460,6 @@ do
             end)
             menuTab['#label'].Text = s_text
             makeTabGlyph(menuTab['#icon-wrap'], settings.icon or s_text, 54)
-            menuFrame.Position = UDim2.fromScale(0, m.id - 1)
             menuFrame.Visible = true
 
             menuTab.Parent = self.instances.tabButtons
@@ -5463,8 +5475,25 @@ do
                 end
             end)
 
-            if (m.id == 1) then
+            local activeMenu
+            for idx, item in ipairs(self.menus) do
+                item.id = idx
+                item.instances.pageSelector.LayoutOrder = idx
+                if (item.selected) then
+                    activeMenu = item
+                end
+            end
+
+            if (m.id == 1 and (not activeMenu or activeMenu == self._defaultSettingsMenu)) then
                 m:select()
+            elseif (activeMenu) then
+                for _, item in ipairs(self.menus) do
+                    item.instances.menuFrame.Position = UDim2.fromScale(0, item.id - activeMenu.id)
+                end
+                local pill = self.instances and self.instances.activePill
+                if (pill and pill.Parent) then
+                    pill.Position = UDim2.new(0, 7, 0, 7 + (activeMenu.id - 1) * 35)
+                end
             end
             return m
         end
@@ -10169,6 +10198,253 @@ do
         return currentTextScale
     end
 
+    local function attachDefaultSettingsTab(win)
+        local settingsMenu = win:addMenu({
+            text = 'settings',
+            icon = 'settings',
+            _isDefaultSettings = true
+        })
+        win._defaultSettingsMenu = settingsMenu
+        win.settingsMenu = settingsMenu
+
+        local appearance = settingsMenu:addSection({
+            text = 'appearance & theme',
+            side = 'left',
+            showMinButton = true,
+            tooltip = 'Fonts, scaling, live accent colors, surface palette, and window style'
+        })
+
+        appearance:addFontSelector({
+            text = 'font',
+            tooltip = 'Browse and live-preview 130+ built-in and Creator Store fonts'
+        }, function(name)
+            ui.notify({
+                title = 'font',
+                message = 'Active font: ' .. name,
+                duration = 2
+            })
+        end)
+
+        appearance:addUIScaler({
+            text = 'content scale',
+            min = 0.5,
+            max = 2.0,
+            step = 0.05,
+            val = currentScale,
+            tooltip = 'Scales everything inside the window without changing outer window size'
+        })
+
+        appearance:addTextScaler({
+            text = 'text scale',
+            min = 0.6,
+            max = 1.8,
+            step = 0.05,
+            val = currentTextScale,
+            tooltip = 'Scales every text label, button, and input across the entire UI'
+        })
+
+        appearance:addDivider('theme & colors')
+
+        appearance:addDropdown({
+            text = 'theme preset',
+            options = ui.getThemes(),
+            default = ui.getThemeName(),
+            tooltip = 'Instantly switch between built-in tactical color palettes'
+        }, function(preset)
+            ui.setThemePreset(preset)
+        end)
+
+        appearance:addColorPicker({
+            text = 'accent primary',
+            color = ui.getTheme().Primary,
+            tooltip = 'Live-updates primary accent color, indicators, sliders, and trims'
+        }, function(c)
+            ui.setAccent(c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'accent secondary',
+            color = ui.getTheme().Secondary,
+            tooltip = 'Live-updates the secondary gradient stop across accents'
+        }, function(c)
+            ui.setThemeColor('Secondary', c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'window surface',
+            color = ui.getTheme().Window3,
+            tooltip = 'Recolors the obsidian window, sidebar, and inset surfaces live'
+        }, function(c)
+            ui.setSurfaceColor(c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'border stroke',
+            color = ui.getTheme().Stroke,
+            tooltip = 'Live-updates panel and control border line colors'
+        }, function(c)
+            ui.setThemeColor('Stroke', c)
+        end)
+
+        appearance:addColorPicker({
+            text = 'primary text',
+            color = ui.getTheme().TextPrimary,
+            tooltip = 'Live-updates main label and title text color'
+        }, function(c)
+            ui.setThemeColor('TextPrimary', c)
+        end)
+
+        appearance:addDivider('window style')
+
+        appearance:addSlider({
+            text = 'transparency',
+            min = 0,
+            max = 0.45,
+            step = 0.01,
+            val = currentTransparency,
+            tooltip = 'Adjusts window backdrop translucency in real time'
+        }, function(v)
+            ui.setTransparency(v)
+        end)
+
+        appearance:addToggle({
+            text = 'corner rounding',
+            state = rounding and true or false,
+            tooltip = 'Switches between sharp tactical edges and soft rounded corners live'
+        }, function(state)
+            ui.setRounding(state)
+        end)
+
+        appearance:addToggle({
+            text = 'smooth dragging',
+            state = animSpeed ~= 0,
+            tooltip = 'Enables spring-interpolated inertia while dragging the window'
+        }, function(state)
+            ui.setSmoothDragging(state)
+        end)
+
+        appearance:addButton({
+            text = 'reset appearance',
+            style = 'small',
+            tooltip = 'Restores default dark-crimson palette, Builder Mono font, and 1.0x scale'
+        }, function()
+            ui.resetTheme()
+            ui.notify({
+                title = 'appearance',
+                message = 'Restored default LARPWare crimson styling',
+                duration = 2
+            })
+        end)
+
+        local cfgSec = settingsMenu:addSection({
+            text = 'hud, binds & configs',
+            side = 'right',
+            showMinButton = true,
+            tooltip = 'Menu hotkey, HUD overlays, config profiles, and safe unload'
+        })
+
+        local menuKey = cfgSec:addHotkey({
+            text = 'toggle menu bind',
+            bind = Enum.KeyCode.RightShift,
+            tooltip = 'Show or hide the window. Click twice while listening to cancel input.'
+        })
+        menuKey:linkToControl(win)
+
+        local wmVisible = (ui._watermarkFrame and ui._watermarkFrame.Visible) and true or false
+        cfgSec:addToggle({
+            text = 'watermark',
+            state = wmVisible,
+            tooltip = 'Toggles the draggable top-left LARPWare status bar'
+        }, function(state)
+            ui.toggleWatermark(state)
+        end)
+
+        local kbVisible = (ui._keybindListFrame and ui._keybindListFrame.Visible) and true or false
+        cfgSec:addToggle({
+            text = 'keybind list',
+            state = kbVisible,
+            tooltip = 'Toggles the draggable active keybinds HUD overlay'
+        }, function(state)
+            ui.toggleKeybindList(state)
+        end)
+
+        cfgSec:addTextbox({
+            text = 'watermark text',
+            placeholder = 'custom watermark...',
+            tooltip = 'Press Enter to customize the watermark label text'
+        }):bindToEvent('onFocusLost', function(text)
+            if (text ~= '') then
+                ui.setWatermark(text, true)
+            end
+        end)
+
+        cfgSec:addDivider('profiles')
+
+        local cfgName = cfgSec:addTextbox({
+            text = 'config name',
+            placeholder = 'new config name...',
+            tooltip = 'Optional name used when saving a new profile'
+        })
+
+        local cfgList = cfgSec:addListbox({
+            text = 'saved configs',
+            items = {'default', 'legit', 'rage', 'streamproof', 'tournament'},
+            default = 'default',
+            searchable = false,
+            height = 96,
+            tooltip = 'Click a saved configuration profile to select it'
+        }, function(cfg)
+            ui.notify({
+                title = 'config',
+                message = 'Selected profile: ' .. tostring(cfg),
+                duration = 2
+            })
+        end)
+
+        cfgSec:addDualButton({
+            left = 'save config',
+            right = 'load config',
+            tooltip = 'Save current values or load the highlighted profile'
+        }, function()
+            local name = cfgName:getText()
+            if (name == '') then
+                name = tostring(cfgList:getValue() or 'default')
+            end
+            ui.notify({title = 'config', message = 'Saved ' .. name, duration = 2})
+        end, function()
+            ui.notify({title = 'config', message = 'Loaded ' .. tostring(cfgList:getValue()), duration = 2})
+        end)
+
+        local notifyKey = cfgSec:addHotkey({
+            text = 'test notify bind',
+            bind = Enum.KeyCode.G,
+            tooltip = 'Press this key anytime to trigger the linked test notification. Click twice to cancel.'
+        })
+        notifyKey:linkToControl(cfgSec:addButton({
+            text = 'send test notification',
+            style = 'small',
+            tooltip = 'Dispatches a sample toast notification in the bottom-right corner'
+        }, function()
+            ui.notify({
+                title = 'LARPWare',
+                message = 'All systems nominal.',
+                duration = 2
+            })
+        end))
+
+        cfgSec:addDualButton({
+            left = 'replay intro',
+            right = 'unload ui',
+            tooltip = 'Replay the L A R P launch intro or cleanly terminate the UI'
+        }, function()
+            win:playIntro()
+        end, function()
+            ui.terminate()
+        end)
+
+        return settingsMenu
+    end
+
     ui.newWindow = function(settings)
         if (typeof(settings) ~= 'table') then
             return error('expected type table for settings', 2)
@@ -10178,6 +10454,7 @@ do
         local s_resize = settings.resize or false
         local s_showSettings = settings.showSettings
         local s_showSearch = settings.showSearch
+        local s_defaultSettings = (settings.defaultSettings == nil) and true or (settings.defaultSettings and true or false)
         local s_position = settings.position
         if (not s_position) then
             s_position = defaultWinPos
@@ -10200,6 +10477,10 @@ do
         win.size = s_winSize
         if (sessionRecord) then
             sessionRecord.title = tostring(s_title)
+        end
+
+        if (s_defaultSettings) then
+            attachDefaultSettingsTab(win)
         end
 
         local s_intro = (settings.intro == nil) and enableIntro or (settings.intro and true or false)

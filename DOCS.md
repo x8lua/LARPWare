@@ -106,12 +106,13 @@ local window = ui.newWindow({
 | `resize` | `boolean` | `false` | Shows bottom-right resize grip and enables window resizing. |
 | `showSettings` | `boolean` | `true` | Shows titlebar appearance popover button. |
 | `showSearch` | `boolean` | `true` | Shows titlebar global control search magnifying glass button. |
+| `defaultSettings` | `boolean` | `true` | Automatically appends the built-in `settings` tab (fonts, scaling, theme presets, live color pickers, transparency, rounding, smooth dragging, menu bind, HUD toggles, profiles, replay intro, unload) pinned to the bottom of the sidebar. |
 | `intro` | `boolean` | inherits `uiLoader` | Overrides whether this window plays the in-window `L A R P` intro on open. |
 | `size` | `Vector2 \| UDim2` | `550x376` | Initial window size. |
 | `position` | `UDim2` | auto-staggered | Initial window position. |
 | `icon` | `string` | `nil` | Optional `rbxassetid://...` titlebar icon. |
 
-**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:playIntro()`, `window:destroy()`.
+**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:playIntro()`, `window:getSettingsMenu()`, `window:destroy()`.
 
 > Tip: `window` supports `hotkey:linkToControl(window)` so a keybind (such as `Enum.KeyCode.RightShift`) can toggle the entire window open/closed.
 
@@ -513,36 +514,5 @@ leftSec:addSlider({
     suffix = 'm'
 }, function(v)
     print('range:', v)
-end)
-
-local cfgTab = win:addMenu({text = 'settings'})
-local themeSec = cfgTab:addSection({text = 'appearance', side = 'left'})
-themeSec:addFontSelector({text = 'font'})
-themeSec:addUIScaler({text = 'content scale'})
-themeSec:addTextScaler({text = 'text scale'})
-themeSec:addDropdown({
-    text = 'preset',
-    options = ui.getThemes(),
-    default = ui.getThemeName()
-}, function(p)
-    ui.setThemePreset(p)
-end)
-themeSec:addColorPicker({
-    text = 'accent',
-    color = ui.getTheme().Primary
-}, function(c)
-    ui.setAccent(c)
-end)
-
-local sysSec = cfgTab:addSection({text = 'system', side = 'right'})
-local menuKey = sysSec:addHotkey({text = 'toggle ui', bind = Enum.KeyCode.RightShift})
-menuKey:linkToControl(win)
-sysSec:addDualButton({
-    left = 'replay intro',
-    right = 'unload'
-}, function()
-    win:playIntro()
-end, function()
-    ui.terminate()
 end)
 ```
