@@ -11305,11 +11305,17 @@ do
             items = {},
             folder = nil,
             includePreference = false,
+            autoLoad = true,
+            autoloadName = nil,
+            autoloadRan = false,
             onSave = nil,
             onLoad = nil,
             onDelete = nil,
             onSelect = nil,
             onRefresh = nil,
+            onAutoload = nil,
+            onSetAutoload = nil,
+            onClearAutoload = nil,
             memConfigs = {}
         }
 
@@ -11319,11 +11325,17 @@ do
             cfgState.items = initCfg.items or initCfg.options or {}
             cfgState.folder = initCfg.folder
             cfgState.includePreference = initCfg.includePreference == true
+            if (initCfg.autoLoad ~= nil) then
+                cfgState.autoLoad = initCfg.autoLoad and true or false
+            end
             cfgState.onSave = initCfg.onSave
             cfgState.onLoad = initCfg.onLoad
             cfgState.onDelete = initCfg.onDelete
             cfgState.onSelect = initCfg.onSelect
             cfgState.onRefresh = initCfg.onRefresh
+            cfgState.onAutoload = initCfg.onAutoload
+            cfgState.onSetAutoload = initCfg.onSetAutoload
+            cfgState.onClearAutoload = initCfg.onClearAutoload
 
             local function getConfigFolder()
                 if (typeof(cfgState.folder) == 'string' and trimStr(cfgState.folder) ~= '') then
@@ -11339,6 +11351,58 @@ do
 
             local function getConfigPath(name)
                 return getConfigFolder() .. '/' .. name .. '.json'
+            end
+
+            local function getAutoloadPath()
+                return getConfigFolder() .. '/_autoload.txt'
+            end
+
+            local function readDiskAutoload()
+                if (typeof(readfile) == 'function') then
+                    local fp = getAutoloadPath()
+                    local exists = true
+                    if (typeof(isfile) == 'function') then
+                        local okIs, resIs = pcall(isfile, fp)
+                        exists = okIs and resIs == true
+                    end
+                    if (exists) then
+                        local okRead, raw = pcall(readfile, fp)
+                        if (okRead and typeof(raw) == 'string') then
+                            local clean = sanitizeFileName(raw)
+                            if (clean ~= '') then
+                                cfgState.autoloadName = clean
+                                return clean
+                            end
+                        end
+                    end
+                end
+                return cfgState.autoloadName
+            end
+
+            local function writeDiskAutoload(name)
+                local clean = sanitizeFileName(name or '')
+                if (clean == '') then
+                    cfgState.autoloadName = nil
+                    if (typeof(delfile) == 'function') then
+                        local fp = getAutoloadPath()
+                        local exists = true
+                        if (typeof(isfile) == 'function') then
+                            local okIs, resIs = pcall(isfile, fp)
+                            exists = okIs and resIs == true
+                        end
+                        if (exists) then
+                            pcall(delfile, fp)
+                        end
+                    end
+                    return true
+                end
+                cfgState.autoloadName = clean
+                if (typeof(writefile) == 'function') then
+                    local folder = getConfigFolder()
+                    ensureFolderPath(folder)
+                    pcall(writefile, getAutoloadPath(), clean)
+                end
+                return true
             end
 
             local function collectControls(fn)
@@ -11683,6 +11747,9 @@ do
                 end
                 local names = scanDiskConfigs()
                 win:setConfigs(names, names[1])
+                if (cfgState.autoloadName == safeName) then
+                    win:clearAutoloadConfig(true)
+                end
                 if (not silent) then
                     ui.notify({
                         title = 'configs',
@@ -11749,24 +11816,158 @@ do
                 end
             end)
 
+            local autoloadLabel = cfgSec:addLabel({
+                text = 'autoload: none',
+                dim = true,
+                tooltip = 'Configuration profile automatically loaded when this UI starts'
+            })
+
+            local function syncAutoloadLabel()
+                local cur = cfgState.autoloadName
+                if (cur and cur ~= '') then
+                    autoloadLabel:setText('autoload: ' .. tostring(cur))
+                else
+                    autoloadLabel:setText('autoload: none')
+                end
+            end
+
+            win.getAutoloadConfig = function()
+                return readDiskAutoload()
+            end
+
+            win.setAutoloadConfig = function(_, rawName, silent)
+                local safeName = sanitizeFileName(rawName)
+                if (safeName == '') then
+                    if (not silent) then
+                        ui.notify({
+                            title = 'configs',
+                            message = 'Select a config to set as autoload',
+                            duration = 2.5
+                        })
+                    end
+                    return false
+                end
+                writeDiskAutoload(safeName)
+                syncAutoloadLabel()
+                if (not silent) then
+                    ui.notify({
+                        title = 'configs',
+                        message = 'Autoload set: ' .. safeName,
+                        duration = 2.2
+                    })
+                end
+                return true
+            end
+
+            win.clearAutoloadConfig = function(_, silent)
+                writeDiskAutoload('')
+                syncAutoloadLabel()
+                if (not silent) then
+                    ui.notify({
+                        title = 'configs',
+                        message = 'Cleared autoload config',
+                        duration = 2
+                    })
+                end
+                return true
+            end
+
+            win.loadAutoloadConfig = function(_, silent)
+                local autoName = readDiskAutoload()
+                syncAutoloadLabel()
+                if (not autoName or autoName == '') then
+                    return false
+                end
+                if (table.find(cfgState.items, autoName)) then
+                    cfgList:setValue(autoName, true)
+                end
+                if (typeof(cfgState.onAutoload) == 'function') then
+                    cfgState.onAutoload(autoName)
+                    win:fireEvent('onConfigAutoload', autoName)
+                    return true
+                end
+                local hasCustomLoad = (typeof(cfgState.onLoad) == 'function') or (win.binds and win.binds.onConfigLoad ~= nil)
+                if (hasCustomLoad) then
+                    if (typeof(cfgState.onLoad) == 'function') then
+                        cfgState.onLoad(autoName, autoName)
+                    end
+                    win:fireEvent('onConfigLoad', autoName, autoName)
+                    win:fireEvent('onConfigAutoload', autoName)
+                    return true
+                end
+                local ok = win:loadConfig(autoName, silent == true)
+                if (ok) then
+                    win:fireEvent('onConfigAutoload', autoName)
+                end
+                return ok
+            end
+
+            local autoloadBtns = cfgSec:addDualButton({
+                left = 'set autoload',
+                right = 'clear autoload',
+                tooltip = 'Automatically load the selected profile on startup, or clear autoload'
+            }, function()
+                local sel = cfgList:getValue()
+                local name = trimStr(cfgName:getText())
+                local target = (sel ~= nil and tostring(sel) ~= '') and tostring(sel) or name
+                local hasCustomSet = (typeof(cfgState.onSetAutoload) == 'function') or (win.binds and win.binds.onConfigSetAutoload ~= nil)
+                if (hasCustomSet) then
+                    if (target ~= '') then
+                        cfgState.autoloadName = sanitizeFileName(target)
+                        syncAutoloadLabel()
+                    end
+                    if (typeof(cfgState.onSetAutoload) == 'function') then
+                        cfgState.onSetAutoload(target, sel)
+                    end
+                    win:fireEvent('onConfigSetAutoload', target, sel)
+                else
+                    win:setAutoloadConfig(target, false)
+                    win:fireEvent('onConfigSetAutoload', target, sel)
+                end
+            end, function()
+                local hasCustomClear = (typeof(cfgState.onClearAutoload) == 'function') or (win.binds and win.binds.onConfigClearAutoload ~= nil)
+                if (hasCustomClear) then
+                    cfgState.autoloadName = nil
+                    syncAutoloadLabel()
+                    if (typeof(cfgState.onClearAutoload) == 'function') then
+                        cfgState.onClearAutoload()
+                    end
+                    win:fireEvent('onConfigClearAutoload')
+                else
+                    win:clearAutoloadConfig(false)
+                    win:fireEvent('onConfigClearAutoload')
+                end
+            end)
+
             win.configControls = {
                 nameBox = cfgName,
                 list = cfgList,
                 buttons = saveLoadBtns,
                 actionButtons = refreshDeleteBtns,
                 refreshButton = refreshDeleteBtns.instances.left,
-                deleteButton = refreshDeleteBtns.instances.right
+                deleteButton = refreshDeleteBtns.instances.right,
+                autoloadLabel = autoloadLabel,
+                autoloadButtons = autoloadBtns,
+                autoloadButton = autoloadBtns.instances.left,
+                clearAutoloadButton = autoloadBtns.instances.right
             }
 
             win.configureConfigs = function(_, opts)
                 if (typeof(opts) ~= 'table') then return win end
-                if (opts.folder ~= nil) then cfgState.folder = opts.folder end
+                if (opts.folder ~= nil) then
+                    cfgState.folder = opts.folder
+                    cfgState.autoloadName = nil
+                end
                 if (opts.includePreference ~= nil) then cfgState.includePreference = opts.includePreference == true end
+                if (opts.autoLoad ~= nil) then cfgState.autoLoad = opts.autoLoad and true or false end
                 if (opts.onSave ~= nil) then cfgState.onSave = opts.onSave end
                 if (opts.onLoad ~= nil) then cfgState.onLoad = opts.onLoad end
                 if (opts.onDelete ~= nil) then cfgState.onDelete = opts.onDelete end
                 if (opts.onSelect ~= nil) then cfgState.onSelect = opts.onSelect end
                 if (opts.onRefresh ~= nil) then cfgState.onRefresh = opts.onRefresh end
+                if (opts.onAutoload ~= nil) then cfgState.onAutoload = opts.onAutoload end
+                if (opts.onSetAutoload ~= nil) then cfgState.onSetAutoload = opts.onSetAutoload end
+                if (opts.onClearAutoload ~= nil) then cfgState.onClearAutoload = opts.onClearAutoload end
                 if (opts.placeholder and cfgName.instances and cfgName.instances.textBox) then
                     cfgName.instances.textBox.PlaceholderText = tostring(opts.placeholder)
                 end
@@ -11780,12 +11981,22 @@ do
                 elseif (opts.default ~= nil or opts.value ~= nil) then
                     cfgList:setValue(opts.default ~= nil and opts.default or opts.value, true)
                 end
+                readDiskAutoload()
+                syncAutoloadLabel()
                 return win
             end
 
             if (not hasInitialItems) then
                 win:refreshConfigs(true)
             end
+            readDiskAutoload()
+            syncAutoloadLabel()
+
+            task.delay(0.18, function()
+                if (ui._terminated or cfgState.autoloadRan or not cfgState.autoLoad) then return end
+                cfgState.autoloadRan = true
+                win:loadAutoloadConfig(false)
+            end)
         end
 
         local notifyKey = cfgSec:addHotkey({
