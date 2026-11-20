@@ -11220,7 +11220,7 @@ do
 
         local menuKey = cfgSec:addHotkey({
             text = 'toggle menu bind',
-            bind = Enum.KeyCode.RightShift,
+            bind = Enum.KeyCode.K,
             tooltip = 'Show or hide the window. Click twice while listening to cancel input.'
         })
         menuKey:linkToControl(win)

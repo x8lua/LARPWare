@@ -144,7 +144,7 @@ window:configureConfigs({
 
 You can also listen to `onConfigSave`, `onConfigLoad`, `onConfigDelete`, `onConfigSelect`, and `onConfigRefresh` via `window:bindToEvent(...)`, or access the underlying controls directly through `window.configControls` (`nameBox`, `list`, `buttons`, `actionButtons`, `refreshButton`, `deleteButton`).
 
-> Tip: `window` supports `hotkey:linkToControl(window)` so a keybind (such as `Enum.KeyCode.RightShift`) can toggle the entire window open/closed.
+> Tip: `window` supports `hotkey:linkToControl(window)` so a keybind (such as `Enum.KeyCode.K`) can toggle the entire window open/closed.
 
 ### Adding Tabs — `window:addMenu(settings)`
 
@@ -371,7 +371,7 @@ Click once to listen (`[...]`), press any key to bind, press `Escape` to clear (
 ```lua
 local bind = sec:addHotkey({
     text = 'toggle menu',
-    bind = Enum.KeyCode.RightShift
+    bind = Enum.KeyCode.K
 })
 bind:linkToControl(window)
 ```
