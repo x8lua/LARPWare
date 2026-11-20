@@ -34,6 +34,7 @@ local ui = uiLoader({
 | `smoothDragging` | `boolean` | `true` | Enables smooth inertia while dragging windows and HUD panels. |
 | `intro` | `boolean` | `true` | Plays the in-window `L A R P` intro animation when the window opens. |
 | `mobileButton` | `boolean` | `TouchEnabled and not KeyboardEnabled` | Displays the draggable, resizable floating toggle button to open/close the UI. Auto-enabled on touch-only mobile devices and hidden by default on keyboard devices. |
+| `unlockCursor` | `boolean` | `true` | Forces free mouse movement (`Modal` + `MouseBehavior.Default`) and draws the high-contrast LARPWare cursor override whenever a window is open, even during ShiftLock or first-person camera lock. Toggleable live in `Preference` (`unlock cursor`) or via `ui.setCursorUnlock(bool)` / `ui.getCursorUnlock()`. |
 | `onCancel` | `function` | `nil` | Optional callback invoked if the user clicks **Cancel** on the duplicate-instance warning modal. If omitted, the duplicate thread yields cleanly without errors. |
 
 ### Hosting & Parenting

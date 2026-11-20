@@ -22,6 +22,7 @@ local currentTextScale = 1
 local currentTransparency = 0
 local enableIntro = true
 local enableMobileButton = (inputService.TouchEnabled and not inputService.KeyboardEnabled)
+local enableCursorUnlock = true
 local theme
 
 local function isPrimaryInput(io)
@@ -461,6 +462,11 @@ do
         end
         if (settings.mobileButton ~= nil) then
             enableMobileButton = settings.mobileButton and true or false
+        end
+        if (settings.unlockCursor ~= nil) then
+            enableCursorUnlock = settings.unlockCursor and true or false
+        elseif (settings.forceCursor ~= nil) then
+            enableCursorUnlock = settings.forceCursor and true or false
         end
         if (typeof(theme) == 'string') then
             if (theme == 'cherry') then
@@ -1190,6 +1196,10 @@ end
 
 local uiScreen = Instance.new('ScreenGui')
 local hudScreen = Instance.new('ScreenGui')
+local cursorScreen = Instance.new('ScreenGui')
+local cursorStepName = 'LARPWare_CursorUnlock_' .. tostring(math.random(100000, 999999))
+local cursorUnlockBound = false
+local cursorRoot
 local notifContainer
 local notifScale
 local nestedScrolls = {}
@@ -1633,6 +1643,73 @@ do
     hudScreen:SetAttribute('LARPWareInstance', true)
     hudScreen.Parent = targetParent
 
+    cursorScreen.OnTopOfCoreBlur = true
+    cursorScreen.IgnoreGuiInset = true
+    cursorScreen.DisplayOrder = 100999
+    cursorScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    cursorScreen.ResetOnSpawn = false
+    cursorScreen.Enabled = false
+    cursorScreen.Name = randomGuiName()
+    cursorScreen:SetAttribute('LARPWareInstance', true)
+    cursorScreen.Parent = targetParent
+
+    create('TextButton', {
+        Active = false,
+        AutoButtonColor = false,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Modal = true,
+        Name = '#modal-unlock',
+        Position = UDim2.fromOffset(0, 0),
+        Selectable = false,
+        Size = UDim2.fromOffset(0, 0),
+        Text = '',
+        Visible = true,
+        ZIndex = 0
+    }, cursorScreen)
+
+    cursorRoot = create('Frame', {
+        Active = false,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Name = '#larp-cursor',
+        Position = UDim2.fromOffset(-100, -100),
+        Size = UDim2.fromOffset(20, 20),
+        Visible = false,
+        ZIndex = 99995
+    }, cursorScreen)
+
+    local function addCursorBar(name, pos, size, color, rot, z, anchor)
+        return create('Frame', {
+            Active = false,
+            AnchorPoint = anchor or Vector2.new(0, 0),
+            BackgroundColor3 = color,
+            BorderSizePixel = 0,
+            Name = name,
+            Position = pos,
+            Rotation = rot or 0,
+            Size = size,
+            ZIndex = z
+        }, cursorRoot)
+    end
+
+    local outlineCol = Color3.fromRGB(0, 0, 0)
+    local coreCol = Color3.fromRGB(255, 255, 255)
+    addCursorBar('#ol-v', UDim2.fromOffset(-1, -1), UDim2.fromOffset(4, 15), outlineCol, 0, 99996)
+    addCursorBar('#ol-h', UDim2.fromOffset(-1, -1), UDim2.fromOffset(13, 4), outlineCol, 0, 99996)
+    addCursorBar('#ol-d', UDim2.fromOffset(0, 2), UDim2.fromOffset(4, 15), outlineCol, -45, 99996)
+    addCursorBar('#fg-v', UDim2.fromOffset(0, 0), UDim2.fromOffset(2, 13), coreCol, 0, 99998)
+    addCursorBar('#fg-h', UDim2.fromOffset(0, 0), UDim2.fromOffset(11, 2), coreCol, 0, 99998)
+    addCursorBar('#fg-d', UDim2.fromOffset(1, 2), UDim2.fromOffset(2, 13), coreCol, -45, 99998)
+    local cursorCore = addCursorBar('#accent-core', UDim2.fromOffset(4, 4), UDim2.fromOffset(4, 4), theme.Primary, 45, 99999, Vector2.new(0.5, 0.5))
+    create('UIStroke', {
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Color = outlineCol,
+        LineJoinMode = Enum.LineJoinMode.Miter,
+        Name = '#stroke',
+        Thickness = 1
+    }, cursorCore)
+
     notifContainer = create('Frame', {
         Active = false,
         AnchorPoint = Vector2.new(1, 1),
@@ -1647,6 +1724,85 @@ do
         Name = '#scale',
         Scale = 1
     }, notifContainer)
+end
+
+local lastCursorX, lastCursorY = nil, nil
+local savedMouseIconEnabled = nil
+local cursorTerminated = false
+
+local function syncCursorUnlock(shouldActive)
+    local active = (shouldActive == true) and (enableCursorUnlock == true) and (not cursorTerminated)
+    if (active) then
+        if (cursorScreen and cursorScreen.Parent) then
+            cursorScreen.Enabled = true
+        end
+        local hasMouse = inputService.MouseEnabled == true
+        if (savedMouseIconEnabled == nil) then
+            savedMouseIconEnabled = inputService.MouseIconEnabled
+        end
+        pcall(function()
+            inputService.MouseBehavior = Enum.MouseBehavior.Default
+            if (hasMouse) then
+                inputService.MouseIconEnabled = false
+            end
+        end)
+        if (cursorRoot and cursorRoot.Parent) then
+            cursorRoot.Visible = hasMouse
+            if (hasMouse) then
+                local mpos = inputService:GetMouseLocation()
+                lastCursorX, lastCursorY = mpos.X, mpos.Y
+                cursorRoot.Position = UDim2.fromOffset(mpos.X, mpos.Y)
+            end
+        end
+        if (not cursorUnlockBound) then
+            cursorUnlockBound = true
+            renderService:BindToRenderStep(cursorStepName, Enum.RenderPriority.Last.Value + 100, function()
+                if (cursorTerminated or not enableCursorUnlock) then
+                    return
+                end
+                if (inputService.MouseBehavior ~= Enum.MouseBehavior.Default) then
+                    inputService.MouseBehavior = Enum.MouseBehavior.Default
+                end
+                local mouseOn = inputService.MouseEnabled == true
+                if (mouseOn) then
+                    if (inputService.MouseIconEnabled ~= false) then
+                        inputService.MouseIconEnabled = false
+                    end
+                    if (cursorRoot and cursorRoot.Parent) then
+                        if (not cursorRoot.Visible) then
+                            cursorRoot.Visible = true
+                        end
+                        local mpos = inputService:GetMouseLocation()
+                        if (mpos.X ~= lastCursorX or mpos.Y ~= lastCursorY) then
+                            lastCursorX, lastCursorY = mpos.X, mpos.Y
+                            cursorRoot.Position = UDim2.fromOffset(mpos.X, mpos.Y)
+                        end
+                    end
+                elseif (cursorRoot and cursorRoot.Parent and cursorRoot.Visible) then
+                    cursorRoot.Visible = false
+                end
+            end)
+        end
+    else
+        if (cursorUnlockBound) then
+            cursorUnlockBound = false
+            pcall(renderService.UnbindFromRenderStep, renderService, cursorStepName)
+        end
+        lastCursorX, lastCursorY = nil, nil
+        if (cursorRoot and cursorRoot.Parent) then
+            cursorRoot.Visible = false
+        end
+        if (cursorScreen and cursorScreen.Parent) then
+            cursorScreen.Enabled = false
+        end
+        if (savedMouseIconEnabled ~= nil) then
+            local restoreIcon = savedMouseIconEnabled
+            savedMouseIconEnabled = nil
+            pcall(function()
+                inputService.MouseIconEnabled = (restoreIcon ~= false)
+            end)
+        end
+    end
 end
 
 local function makeCloseGlyph(parent, zIndex)
@@ -3575,6 +3731,9 @@ do
             if (idx) then
                 table.remove(ui.windows, idx)
             end
+            if (ui._syncScreenState) then
+                ui._syncScreenState()
+            end
             if (#ui.windows == 0) then
                 task.wait(0.3)
                 ui.destroy(true)
@@ -3590,7 +3749,10 @@ do
         end
 
         local function syncUiScreenEnabled()
-            if (not uiScreen or not uiScreen.Parent) then return end
+            if (not uiScreen or not uiScreen.Parent) then
+                syncCursorUnlock(false)
+                return
+            end
             local anyVis = false
             for _, w in ipairs(ui.windows) do
                 if (w.instances and w.instances.mainFrame and w.instances.mainFrame.Visible) then
@@ -3599,6 +3761,7 @@ do
                 end
             end
             uiScreen.Enabled = anyVis
+            syncCursorUnlock(anyVis)
             if (not anyVis) then
                 tooltip.showing = false
                 tooltip.handle = nil
@@ -3611,6 +3774,7 @@ do
                 end
             end
         end
+        ui._syncScreenState = syncUiScreenEnabled
 
         window.setVisible = function(self, state)
             local mf = self.instances and self.instances.mainFrame
@@ -11054,6 +11218,14 @@ do
             ui.toggleMobileButton(state)
         end)
 
+        cfgSec:addToggle({
+            text = 'unlock cursor',
+            state = enableCursorUnlock and true or false,
+            tooltip = 'Forces free mouse movement and tactical cursor override even when ShiftLock is active'
+        }, function(state)
+            ui.setCursorUnlock(state)
+        end)
+
         cfgSec:addTextbox({
             text = 'watermark text',
             placeholder = 'custom watermark...',
@@ -11657,6 +11829,9 @@ do
         if (s_intro) then
             playLarpIntro(win, false)
         end
+        if (ui._syncScreenState) then
+            ui._syncScreenState()
+        end
 
         task.spawn(function()
             local insts = win.instances
@@ -11804,6 +11979,12 @@ do
             pcall(function() hudScreen:Destroy() end)
             hudScreen = nil
         end
+        cursorTerminated = true
+        syncCursorUnlock(false)
+        if (cursorScreen) then
+            pcall(function() cursorScreen:Destroy() end)
+            cursorScreen = nil
+        end
 
         if (ui.binds.onDestroy) then
             pcall(ui.binds.onDestroy)
@@ -11814,6 +11995,8 @@ do
     ui.destroy = function(noWindows)
         if (ui._terminated) then return end
         ui._terminated = true
+        cursorTerminated = true
+        syncCursorUnlock(false)
         sessionRecord.active = false
         if (globalEnv[REG_KEY] == sessionRecord) then
             globalEnv[REG_KEY] = nil
@@ -11829,6 +12012,10 @@ do
             if (hudScreen) then
                 hudScreen:Destroy()
                 hudScreen = nil
+            end
+            if (cursorScreen) then
+                cursorScreen:Destroy()
+                cursorScreen = nil
             end
         end)
 
@@ -12041,6 +12228,9 @@ do
         if (hudScreen) then
             applyThemeToTree(hudScreen)
         end
+        if (cursorScreen) then
+            applyThemeToTree(cursorScreen)
+        end
         if (elemClasses) then
             for _, cls in pairs(elemClasses) do
                 if (typeof(cls) == 'table' and cls.instances) then
@@ -12157,6 +12347,20 @@ do
     ui.setSmoothDragging = function(enabled)
         animSpeed = (enabled and true or false) and 1e-12 or 0
         return enabled and true or false
+    end
+
+    ui.getCursorUnlock = function()
+        return enableCursorUnlock and true or false
+    end
+
+    ui.setCursorUnlock = function(enabled)
+        enableCursorUnlock = enabled and true or false
+        if (ui._syncScreenState) then
+            ui._syncScreenState()
+        else
+            syncCursorUnlock(enableCursorUnlock)
+        end
+        return enableCursorUnlock
     end
 
     ui.playIntro = function(targetWin)
