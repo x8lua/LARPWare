@@ -108,47 +108,40 @@ local window = ui.newWindow({
 | `showSettings` | `boolean` | `true` | Shows titlebar appearance popover button. |
 | `showSearch` | `boolean` | `true` | Shows titlebar global control search magnifying glass button. |
 | `defaultPreference` | `boolean` | `true` | Automatically appends the built-in `Preference` tab (fonts, scaling, theme presets, live color pickers, transparency, rounding, smooth dragging, menu bind, HUD toggles, script-adjustable profiles, unload) pinned to the bottom of the sidebar. Alias: `defaultSettings`. |
-| `configs` | `table \| false` | `{}` | Optional config profile controller options (`items`, `default`, `searchable`, `placeholder`, `height`, `onSave`, `onLoad`, `onDelete`, `onSelect`). Pass `false` to omit the profiles block completely, or configure dynamically anytime via `window:configureConfigs(opts)`. |
+| `configs` | `table \| false` | `{}` | Optional config profile controller options (`folder`, `includePreference`, `items`, `default`, `searchable`, `placeholder`, `height`, `onSave`, `onLoad`, `onDelete`, `onSelect`, `onRefresh`). Works out of the box with JSON serialization (`LARPWare/configs/<windowTitle>/*.json` + session fallback) when callbacks are omitted. Pass `false` to omit the profiles block completely, or configure dynamically anytime via `window:configureConfigs(opts)`. |
 | `intro` | `boolean` | inherits `uiLoader` | Overrides whether this window plays the in-window `L A R P` intro on open. |
 | `size` | `Vector2 \| UDim2` | `550x376` | Initial window size. |
 | `position` | `UDim2` | auto-staggered | Initial window position. |
 | `icon` | `string` | `nil` | Optional `rbxassetid://...` titlebar icon. |
 
-**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:popup(settings)`, `window:playIntro()`, `window:getPreferenceMenu()`, `window:configureConfigs(opts)`, `window:setConfigs(list, selected?)`, `window:getConfigs()`, `window:getSelectedConfig()`, `window:getConfigName()`, `window:destroy()`.
+**Window Methods**: `window:setTitle(text)`, `window:setIcon(asset)`, `window:setPosition(udim2)`, `window:getPosition()`, `window:setSize(vec2OrUdim2)`, `window:getSize()`, `window:setVisible(bool)`, `window:toggle()`, `window:minimize()`, `window:toggleSettings()`, `window:toggleSearch(forceState?)`, `window:popup(settings)`, `window:playIntro()`, `window:getPreferenceMenu()`, `window:configureConfigs(opts)`, `window:setConfigs(list, selected?)`, `window:getConfigs()`, `window:getSelectedConfig()`, `window:getConfigName()`, `window:refreshConfigs(silent?)`, `window:saveConfig(name, silent?)`, `window:loadConfig(name, silent?)`, `window:deleteConfig(name, silent?)`, `window:serializeConfig()`, `window:applyConfig(data)`, `window:destroy()`.
 
-### Script-Adjustable Configs (`Preference` Tab)
+### Built-In & Script-Adjustable Configs (`Preference` Tab)
 
-Configs are never hardcoded by the library — your script supplies the profile list and hooks real file/JSON logic:
+Configs work out of the box with zero hardcoded profiles — by default, `save config`, `load config`, `refresh list`, and `delete config` serialize and restore all controls (toggles, sliders, range sliders, dropdowns, multi-dropdowns, segmented selectors, textboxes, listboxes, color pickers, and hotkeys) as `.json` files inside `LARPWare/configs/<windowTitle>` (with an automatic in-session fallback when file APIs are unavailable). Your script can override the folder or hook completely custom logic anytime:
 
 ```lua
-local profiles = {'default', 'farm', 'pvp'}
 window:configureConfigs({
-    items = profiles,
-    default = 'default',
+    folder = 'MyHub/configs',
     onSelect = function(name)
         print('selected:', name)
     end,
+    onRefresh = function()
+        return {'default', 'farm', 'pvp'}
+    end,
     onSave = function(name, selected)
-        if (name == '') then return end
-        if (not table.find(profiles, name)) then
-            table.insert(profiles, name)
-            window:setConfigs(profiles, name)
-        end
+        window:saveConfig(name)
     end,
     onLoad = function(selected)
-        print('load:', selected)
+        window:loadConfig(selected)
     end,
     onDelete = function(selected)
-        local idx = table.find(profiles, selected)
-        if (idx) then
-            table.remove(profiles, idx)
-            window:setConfigs(profiles, profiles[1])
-        end
+        window:deleteConfig(selected)
     end
 })
 ```
 
-You can also listen to `onConfigSave`, `onConfigLoad`, `onConfigDelete`, and `onConfigSelect` via `window:bindToEvent(...)`, or access the underlying controls directly through `window.configControls` (`nameBox`, `list`, `buttons`, `deleteButton`).
+You can also listen to `onConfigSave`, `onConfigLoad`, `onConfigDelete`, `onConfigSelect`, and `onConfigRefresh` via `window:bindToEvent(...)`, or access the underlying controls directly through `window.configControls` (`nameBox`, `list`, `buttons`, `actionButtons`, `refreshButton`, `deleteButton`).
 
 > Tip: `window` supports `hotkey:linkToControl(window)` so a keybind (such as `Enum.KeyCode.RightShift`) can toggle the entire window open/closed.
 

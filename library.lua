@@ -11064,21 +11064,209 @@ do
             end
         end)
 
+        local httpService = game:GetService('HttpService')
+
+        local function trimStr(s)
+            return tostring(s or ''):gsub('^%s+', ''):gsub('%s+$', '')
+        end
+
+        local function sanitizeFileName(s)
+            local clean = trimStr(s):gsub('[\\/:%*%?"<>|]+', '_'):gsub('%s+', ' ')
+            clean = clean:gsub('^%.+', ''):gsub('%.+$', '')
+            return clean
+        end
+
+        local function ensureFolderPath(folderPath)
+            if (typeof(makefolder) ~= 'function') then return false end
+            local normalized = tostring(folderPath or ''):gsub('\\', '/'):gsub('^/+', ''):gsub('/+$', '')
+            if (normalized == '') then return false end
+            local acc = ''
+            for part in normalized:gmatch('[^/]+') do
+                acc = (acc == '') and part or (acc .. '/' .. part)
+                local exists = false
+                if (typeof(isfolder) == 'function') then
+                    local okCheck, res = pcall(isfolder, acc)
+                    exists = okCheck and res == true
+                end
+                if (not exists) then
+                    pcall(makefolder, acc)
+                end
+            end
+            return true
+        end
+
         local cfgState = {
             items = {},
+            folder = nil,
+            includePreference = false,
             onSave = nil,
             onLoad = nil,
             onDelete = nil,
-            onSelect = nil
+            onSelect = nil,
+            onRefresh = nil,
+            memConfigs = {}
         }
 
         if (cfgOpts ~= false) then
             local initCfg = (typeof(cfgOpts) == 'table') and cfgOpts or {}
+            local hasInitialItems = (initCfg.items ~= nil or initCfg.options ~= nil)
             cfgState.items = initCfg.items or initCfg.options or {}
+            cfgState.folder = initCfg.folder
+            cfgState.includePreference = initCfg.includePreference == true
             cfgState.onSave = initCfg.onSave
             cfgState.onLoad = initCfg.onLoad
             cfgState.onDelete = initCfg.onDelete
             cfgState.onSelect = initCfg.onSelect
+            cfgState.onRefresh = initCfg.onRefresh
+
+            local function getConfigFolder()
+                if (typeof(cfgState.folder) == 'string' and trimStr(cfgState.folder) ~= '') then
+                    return trimStr(cfgState.folder):gsub('\\', '/'):gsub('/+$', '')
+                end
+                local rawTitle = (win.instances and win.instances.title and win.instances.title.Text) or 'default'
+                local safeTitle = sanitizeFileName(rawTitle)
+                if (safeTitle == '') then
+                    safeTitle = 'default'
+                end
+                return 'LARPWare/configs/' .. safeTitle
+            end
+
+            local function getConfigPath(name)
+                return getConfigFolder() .. '/' .. name .. '.json'
+            end
+
+            local function collectControls(fn)
+                for _, m in ipairs(win.menus or {}) do
+                    if (cfgState.includePreference or not m._isDefaultSettings) then
+                        local mName = tostring(m.name or 'menu')
+                        for _, sec in ipairs(m.sections or {}) do
+                            local sName = tostring(sec.name or 'section')
+                            local seen = {}
+                            for _, ctrl in ipairs(sec.controls or {}) do
+                                local cls = ctrl.class
+                                if (cls == 'toggle' or cls == 'slider' or cls == 'rangeSlider' or cls == 'dropdown' or cls == 'multiDropdown' or cls == 'segmented' or cls == 'textbox' or cls == 'listbox' or cls == 'picker' or cls == 'hotkey') then
+                                    local baseKey = (typeof(ctrl.flag) == 'string' and ctrl.flag ~= '') and ctrl.flag or (mName .. '::' .. sName .. '::' .. cls .. '::' .. tostring(ctrl.name or 'control'))
+                                    seen[baseKey] = (seen[baseKey] or 0) + 1
+                                    local key = (seen[baseKey] == 1) and baseKey or (baseKey .. '#' .. tostring(seen[baseKey]))
+                                    fn(key, ctrl)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
+            win.serializeConfig = function()
+                local data = {}
+                collectControls(function(key, ctrl)
+                    local cls = ctrl.class
+                    if (cls == 'toggle') then
+                        data[key] = ctrl.toggled == true
+                    elseif (cls == 'slider') then
+                        data[key] = ctrl.value
+                    elseif (cls == 'rangeSlider') then
+                        data[key] = {low = ctrl.low, high = ctrl.high}
+                    elseif (cls == 'dropdown') then
+                        data[key] = ctrl.value
+                    elseif (cls == 'multiDropdown') then
+                        data[key] = ctrl:getValues()
+                    elseif (cls == 'segmented') then
+                        data[key] = ctrl.value
+                    elseif (cls == 'textbox') then
+                        data[key] = ctrl:getText()
+                    elseif (cls == 'listbox') then
+                        data[key] = ctrl:getValue()
+                    elseif (cls == 'picker') then
+                        local c = ctrl:getColor()
+                        if (typeof(c) == 'Color3') then
+                            data[key] = {r = c.R, g = c.G, b = c.B}
+                        end
+                    elseif (cls == 'hotkey') then
+                        data[key] = ctrl.hotkey and ctrl.hotkey.Name or ''
+                    end
+                end)
+                return data
+            end
+
+            win.applyConfig = function(_, data)
+                if (typeof(data) ~= 'table') then return false end
+                collectControls(function(key, ctrl)
+                    local val = data[key]
+                    if (val == nil) then return end
+                    local cls = ctrl.class
+                    if (cls == 'toggle' and typeof(val) == 'boolean') then
+                        if (val) then
+                            pcall(function() ctrl:enable(false) end)
+                        else
+                            pcall(function() ctrl:disable(false) end)
+                        end
+                    elseif (cls == 'slider' and typeof(val) == 'number') then
+                        pcall(function() ctrl:setValue(val, false) end)
+                    elseif (cls == 'rangeSlider' and typeof(val) == 'table' and typeof(val.low) == 'number' and typeof(val.high) == 'number') then
+                        pcall(function() ctrl:setRange(val.low, val.high, false) end)
+                    elseif (cls == 'dropdown') then
+                        pcall(function() ctrl:setValue(val, false) end)
+                    elseif (cls == 'multiDropdown' and typeof(val) == 'table') then
+                        pcall(function() ctrl:setValues(val, false) end)
+                    elseif (cls == 'segmented') then
+                        pcall(function() ctrl:setValue(val, false) end)
+                    elseif (cls == 'textbox' and typeof(val) == 'string') then
+                        pcall(function() ctrl:setText(val) end)
+                    elseif (cls == 'listbox') then
+                        pcall(function() ctrl:setValue(val, false) end)
+                    elseif (cls == 'picker' and typeof(val) == 'table' and typeof(val.r) == 'number' and typeof(val.g) == 'number' and typeof(val.b) == 'number') then
+                        local col = Color3.new(math.clamp(val.r, 0, 1), math.clamp(val.g, 0, 1), math.clamp(val.b, 0, 1))
+                        pcall(function()
+                            ctrl:setColor(col)
+                            ctrl:fireEvent('onNewColor', col)
+                        end)
+                    elseif (cls == 'hotkey' and typeof(val) == 'string') then
+                        if (val == '') then
+                            pcall(function() ctrl:setHotkey(nil) end)
+                        elseif (Enum.KeyCode[val]) then
+                            pcall(function() ctrl:setHotkey(Enum.KeyCode[val]) end)
+                        end
+                    end
+                end)
+                if (ui.refreshKeybindList) then
+                    ui.refreshKeybindList(true)
+                end
+                return true
+            end
+
+            local function scanDiskConfigs()
+                local foundMap = {}
+                local folder = getConfigFolder()
+                local folderExists = true
+                if (typeof(isfolder) == 'function') then
+                    local okDir, resDir = pcall(isfolder, folder)
+                    folderExists = okDir and resDir == true
+                end
+                if (folderExists and typeof(listfiles) == 'function') then
+                    local okList, files = pcall(listfiles, folder)
+                    if (okList and typeof(files) == 'table') then
+                        for _, fp in ipairs(files) do
+                            local norm = tostring(fp):gsub('\\', '/')
+                            local fname = norm:match('([^/]+)$') or norm
+                            local base = fname:match('^(.+)%.json$')
+                            if (base and base ~= '') then
+                                foundMap[base] = true
+                            end
+                        end
+                    end
+                end
+                for k in pairs(cfgState.memConfigs) do
+                    foundMap[k] = true
+                end
+                local names = {}
+                for k in pairs(foundMap) do
+                    table.insert(names, k)
+                end
+                table.sort(names, function(a, b)
+                    return a:lower() < b:lower()
+                end)
+                return names
+            end
 
             cfgSec:addDivider('profiles')
 
@@ -11102,48 +11290,6 @@ do
                 win:fireEvent('onConfigSelect', cfg)
             end)
 
-            local saveLoadBtns = cfgSec:addDualButton({
-                left = 'save config',
-                right = 'load config',
-                tooltip = 'Save current settings or load the highlighted profile'
-            }, function()
-                local name = cfgName:getText()
-                local sel = cfgList:getValue()
-                if (name == '') then
-                    name = sel and tostring(sel) or ''
-                end
-                if (typeof(cfgState.onSave) == 'function') then
-                    cfgState.onSave(name, sel)
-                end
-                win:fireEvent('onConfigSave', name, sel)
-            end, function()
-                local sel = cfgList:getValue()
-                local name = cfgName:getText()
-                if (typeof(cfgState.onLoad) == 'function') then
-                    cfgState.onLoad(sel, name)
-                end
-                win:fireEvent('onConfigLoad', sel, name)
-            end)
-
-            local delBtn = cfgSec:addButton({
-                text = 'delete config',
-                style = 'small',
-                tooltip = 'Deletes the currently selected configuration profile'
-            }, function()
-                local sel = cfgList:getValue()
-                if (typeof(cfgState.onDelete) == 'function') then
-                    cfgState.onDelete(sel)
-                end
-                win:fireEvent('onConfigDelete', sel)
-            end)
-
-            win.configControls = {
-                nameBox = cfgName,
-                list = cfgList,
-                buttons = saveLoadBtns,
-                deleteButton = delBtn
-            }
-
             win.setConfigs = function(_, items, selected)
                 cfgState.items = (typeof(items) == 'table') and items or {}
                 cfgList:setItems(cfgState.items)
@@ -11165,7 +11311,7 @@ do
             end
 
             win.getConfigName = function()
-                local tx = cfgName:getText()
+                local tx = trimStr(cfgName:getText())
                 if (tx ~= '') then
                     return tx
                 end
@@ -11173,21 +11319,266 @@ do
                 return sel and tostring(sel) or ''
             end
 
+            win.refreshConfigs = function(_, silent)
+                local curSel = cfgList:getValue()
+                if (typeof(cfgState.onRefresh) == 'function') then
+                    local okRef, res = pcall(cfgState.onRefresh)
+                    if (okRef and typeof(res) == 'table') then
+                        local keepSel = (curSel ~= nil and table.find(res, curSel)) and curSel or nil
+                        win:setConfigs(res, keepSel)
+                    end
+                    win:fireEvent('onConfigRefresh', cfgState.items)
+                    if (not silent) then
+                        ui.notify({
+                            title = 'configs',
+                            message = 'Refreshed config list (' .. tostring(#cfgState.items) .. ')',
+                            duration = 2
+                        })
+                    end
+                    return cfgState.items
+                end
+                local names = scanDiskConfigs()
+                local keepSel = (curSel ~= nil and table.find(names, curSel)) and curSel or nil
+                win:setConfigs(names, keepSel)
+                win:fireEvent('onConfigRefresh', names)
+                if (not silent) then
+                    ui.notify({
+                        title = 'configs',
+                        message = 'Refreshed config list (' .. tostring(#names) .. ' found)',
+                        duration = 2
+                    })
+                end
+                return names
+            end
+
+            win.saveConfig = function(_, rawName, silent)
+                local safeName = sanitizeFileName(rawName)
+                if (safeName == '') then
+                    if (not silent) then
+                        ui.notify({
+                            title = 'configs',
+                            message = 'Enter a config name before saving',
+                            duration = 2.5
+                        })
+                    end
+                    return false
+                end
+                local payload = win:serializeConfig()
+                cfgState.memConfigs[safeName] = payload
+                local wroteDisk = false
+                if (typeof(writefile) == 'function') then
+                    local folder = getConfigFolder()
+                    ensureFolderPath(folder)
+                    local okEnc, encoded = pcall(function()
+                        return httpService:JSONEncode(payload)
+                    end)
+                    if (okEnc and typeof(encoded) == 'string') then
+                        local okWrite = pcall(writefile, getConfigPath(safeName), encoded)
+                        wroteDisk = okWrite == true
+                    end
+                end
+                local names = scanDiskConfigs()
+                if (not table.find(names, safeName)) then
+                    table.insert(names, safeName)
+                    table.sort(names, function(a, b) return a:lower() < b:lower() end)
+                end
+                win:setConfigs(names, safeName)
+                cfgName:setText('')
+                if (not silent) then
+                    ui.notify({
+                        title = 'configs',
+                        message = wroteDisk and ('Saved config: ' .. safeName) or ('Saved config (session): ' .. safeName),
+                        duration = 2.2
+                    })
+                end
+                return true
+            end
+
+            win.loadConfig = function(_, rawName, silent)
+                local safeName = sanitizeFileName(rawName)
+                if (safeName == '') then
+                    if (not silent) then
+                        ui.notify({
+                            title = 'configs',
+                            message = 'Select a config to load',
+                            duration = 2.5
+                        })
+                    end
+                    return false
+                end
+                local data = nil
+                if (typeof(readfile) == 'function') then
+                    local fp = getConfigPath(safeName)
+                    local exists = true
+                    if (typeof(isfile) == 'function') then
+                        local okIs, resIs = pcall(isfile, fp)
+                        exists = okIs and resIs == true
+                    end
+                    if (exists) then
+                        local okRead, raw = pcall(readfile, fp)
+                        if (okRead and typeof(raw) == 'string' and raw ~= '') then
+                            local okDec, decoded = pcall(function()
+                                return httpService:JSONDecode(raw)
+                            end)
+                            if (okDec and typeof(decoded) == 'table') then
+                                data = decoded
+                                cfgState.memConfigs[safeName] = decoded
+                            end
+                        end
+                    end
+                end
+                if (not data) then
+                    data = cfgState.memConfigs[safeName]
+                end
+                if (not data) then
+                    if (not silent) then
+                        ui.notify({
+                            title = 'configs',
+                            message = 'Config not found: ' .. safeName,
+                            duration = 2.5
+                        })
+                    end
+                    return false
+                end
+                win:applyConfig(data)
+                if (not silent) then
+                    ui.notify({
+                        title = 'configs',
+                        message = 'Loaded config: ' .. safeName,
+                        duration = 2.2
+                    })
+                end
+                return true
+            end
+
+            win.deleteConfig = function(_, rawName, silent)
+                local safeName = sanitizeFileName(rawName)
+                if (safeName == '') then
+                    if (not silent) then
+                        ui.notify({
+                            title = 'configs',
+                            message = 'Select a config to delete',
+                            duration = 2.5
+                        })
+                    end
+                    return false
+                end
+                cfgState.memConfigs[safeName] = nil
+                if (typeof(delfile) == 'function') then
+                    local fp = getConfigPath(safeName)
+                    local exists = true
+                    if (typeof(isfile) == 'function') then
+                        local okIs, resIs = pcall(isfile, fp)
+                        exists = okIs and resIs == true
+                    end
+                    if (exists) then
+                        pcall(delfile, fp)
+                    end
+                end
+                local names = scanDiskConfigs()
+                win:setConfigs(names, names[1])
+                if (not silent) then
+                    ui.notify({
+                        title = 'configs',
+                        message = 'Deleted config: ' .. safeName,
+                        duration = 2.2
+                    })
+                end
+                return true
+            end
+
+            local saveLoadBtns = cfgSec:addDualButton({
+                left = 'save config',
+                right = 'load config',
+                tooltip = 'Save current settings or load the highlighted profile'
+            }, function()
+                local name = trimStr(cfgName:getText())
+                local sel = cfgList:getValue()
+                if (name == '') then
+                    name = sel and tostring(sel) or ''
+                end
+                local hasCustomSave = (typeof(cfgState.onSave) == 'function') or (win.binds and win.binds.onConfigSave ~= nil)
+                if (hasCustomSave) then
+                    if (typeof(cfgState.onSave) == 'function') then
+                        cfgState.onSave(name, sel)
+                    end
+                    win:fireEvent('onConfigSave', name, sel)
+                else
+                    win:saveConfig(name, false)
+                    win:fireEvent('onConfigSave', name, sel)
+                end
+            end, function()
+                local sel = cfgList:getValue()
+                local name = trimStr(cfgName:getText())
+                local target = (sel ~= nil and tostring(sel) ~= '') and tostring(sel) or name
+                local hasCustomLoad = (typeof(cfgState.onLoad) == 'function') or (win.binds and win.binds.onConfigLoad ~= nil)
+                if (hasCustomLoad) then
+                    if (typeof(cfgState.onLoad) == 'function') then
+                        cfgState.onLoad(sel, name)
+                    end
+                    win:fireEvent('onConfigLoad', sel, name)
+                else
+                    win:loadConfig(target, false)
+                    win:fireEvent('onConfigLoad', target, name)
+                end
+            end)
+
+            local refreshDeleteBtns = cfgSec:addDualButton({
+                left = 'refresh list',
+                right = 'delete config',
+                tooltip = 'Reload saved config files or delete the currently selected profile'
+            }, function()
+                win:refreshConfigs(false)
+            end, function()
+                local sel = cfgList:getValue()
+                local hasCustomDelete = (typeof(cfgState.onDelete) == 'function') or (win.binds and win.binds.onConfigDelete ~= nil)
+                if (hasCustomDelete) then
+                    if (typeof(cfgState.onDelete) == 'function') then
+                        cfgState.onDelete(sel)
+                    end
+                    win:fireEvent('onConfigDelete', sel)
+                else
+                    win:deleteConfig(sel, false)
+                    win:fireEvent('onConfigDelete', sel)
+                end
+            end)
+
+            win.configControls = {
+                nameBox = cfgName,
+                list = cfgList,
+                buttons = saveLoadBtns,
+                actionButtons = refreshDeleteBtns,
+                refreshButton = refreshDeleteBtns.instances.left,
+                deleteButton = refreshDeleteBtns.instances.right
+            }
+
             win.configureConfigs = function(_, opts)
                 if (typeof(opts) ~= 'table') then return win end
+                if (opts.folder ~= nil) then cfgState.folder = opts.folder end
+                if (opts.includePreference ~= nil) then cfgState.includePreference = opts.includePreference == true end
                 if (opts.onSave ~= nil) then cfgState.onSave = opts.onSave end
                 if (opts.onLoad ~= nil) then cfgState.onLoad = opts.onLoad end
                 if (opts.onDelete ~= nil) then cfgState.onDelete = opts.onDelete end
                 if (opts.onSelect ~= nil) then cfgState.onSelect = opts.onSelect end
-                if (opts.placeholder and cfgName.instances and cfgName.instances.textbox) then
-                    cfgName.instances.textbox.PlaceholderText = tostring(opts.placeholder)
+                if (opts.onRefresh ~= nil) then cfgState.onRefresh = opts.onRefresh end
+                if (opts.placeholder and cfgName.instances and cfgName.instances.textBox) then
+                    cfgName.instances.textBox.PlaceholderText = tostring(opts.placeholder)
                 end
                 if (opts.items ~= nil or opts.options ~= nil) then
                     win:setConfigs(opts.items or opts.options, opts.default ~= nil and opts.default or opts.value)
+                elseif (opts.folder ~= nil and typeof(cfgState.onRefresh) ~= 'function') then
+                    win:refreshConfigs(true)
+                    if (opts.default ~= nil or opts.value ~= nil) then
+                        cfgList:setValue(opts.default ~= nil and opts.default or opts.value, true)
+                    end
                 elseif (opts.default ~= nil or opts.value ~= nil) then
                     cfgList:setValue(opts.default ~= nil and opts.default or opts.value, true)
                 end
                 return win
+            end
+
+            if (not hasInitialItems) then
+                win:refreshConfigs(true)
             end
         end
 
