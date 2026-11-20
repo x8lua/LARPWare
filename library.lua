@@ -1199,6 +1199,7 @@ local hudScreen = Instance.new('ScreenGui')
 local cursorScreen = Instance.new('ScreenGui')
 local cursorStepName = 'LARPWare_CursorUnlock_' .. tostring(math.random(100000, 999999))
 local cursorUnlockBound = false
+local cursorModalBtn
 local cursorRoot
 local notifContainer
 local notifScale
@@ -1653,18 +1654,18 @@ do
     cursorScreen:SetAttribute('LARPWareInstance', true)
     cursorScreen.Parent = targetParent
 
-    create('TextButton', {
+    cursorModalBtn = create('TextButton', {
         Active = false,
         AutoButtonColor = false,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        Modal = true,
+        Modal = false,
         Name = '#modal-unlock',
         Position = UDim2.fromOffset(0, 0),
         Selectable = false,
         Size = UDim2.fromOffset(0, 0),
         Text = '',
-        Visible = true,
+        Visible = false,
         ZIndex = 0
     }, cursorScreen)
 
@@ -1728,17 +1729,25 @@ end
 
 local lastCursorX, lastCursorY = nil, nil
 local savedMouseIconEnabled = nil
+local savedMouseBehavior = nil
 local cursorTerminated = false
 
 local function syncCursorUnlock(shouldActive)
     local active = (shouldActive == true) and (enableCursorUnlock == true) and (not cursorTerminated)
     if (active) then
-        if (cursorScreen and cursorScreen.Parent) then
-            cursorScreen.Enabled = true
-        end
         local hasMouse = inputService.MouseEnabled == true
         if (savedMouseIconEnabled == nil) then
             savedMouseIconEnabled = inputService.MouseIconEnabled
+        end
+        if (savedMouseBehavior == nil) then
+            savedMouseBehavior = inputService.MouseBehavior
+        end
+        if (cursorModalBtn and cursorModalBtn.Parent) then
+            cursorModalBtn.Modal = true
+            cursorModalBtn.Visible = true
+        end
+        if (cursorScreen and cursorScreen.Parent) then
+            cursorScreen.Enabled = true
         end
         pcall(function()
             inputService.MouseBehavior = Enum.MouseBehavior.Default
@@ -1792,6 +1801,10 @@ local function syncCursorUnlock(shouldActive)
         if (cursorRoot and cursorRoot.Parent) then
             cursorRoot.Visible = false
         end
+        if (cursorModalBtn and cursorModalBtn.Parent) then
+            cursorModalBtn.Modal = false
+            cursorModalBtn.Visible = false
+        end
         if (cursorScreen and cursorScreen.Parent) then
             cursorScreen.Enabled = false
         end
@@ -1801,6 +1814,22 @@ local function syncCursorUnlock(shouldActive)
             pcall(function()
                 inputService.MouseIconEnabled = (restoreIcon ~= false)
             end)
+        end
+        if (savedMouseBehavior ~= nil) then
+            local restoreBehavior = savedMouseBehavior
+            savedMouseBehavior = nil
+            if (restoreBehavior ~= Enum.MouseBehavior.Default) then
+                pcall(function()
+                    inputService.MouseBehavior = restoreBehavior
+                end)
+                task.defer(function()
+                    if (not cursorUnlockBound and not cursorTerminated) then
+                        pcall(function()
+                            inputService.MouseBehavior = restoreBehavior
+                        end)
+                    end
+                end)
+            end
         end
     end
 end
@@ -4321,6 +4350,11 @@ do
             local insts = {}
             insts.mainFrame = self.instances.mainFrame:Clone()
             insts.mainFrame['#scale'].Scale = 1
+            insts.mainFrame:GetPropertyChangedSignal('Visible'):Connect(function()
+                if (ui._syncScreenState) then
+                    ui._syncScreenState()
+                end
+            end)
 
             local titleBar = insts.mainFrame['#title-bar']
             insts.buttonClose = titleBar['#button-close']
