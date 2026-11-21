@@ -10895,6 +10895,868 @@ do
 
         elemClasses.paragraph = paragraph
     end
+
+    do
+        local notePreview = {}
+        notePreview.__index = notePreview
+        setmetatable(notePreview, elemClasses.baseElement)
+        notePreview.class = 'notePreview'
+
+        local JUDGE_COLORS = {
+            Perfect = Color3.fromRGB(76, 232, 159),
+            Great = Color3.fromRGB(99, 179, 255),
+            Good = Color3.fromRGB(246, 200, 81),
+            OK = Color3.fromRGB(240, 138, 75),
+            Miss = Color3.fromRGB(242, 82, 99)
+        }
+        local LANE_COLORS = {
+            Color3.fromRGB(76, 232, 159),
+            Color3.fromRGB(99, 179, 255),
+            Color3.fromRGB(246, 200, 81),
+            Color3.fromRGB(242, 82, 99)
+        }
+        local JUDGE_ORDER = {'Perfect', 'Great', 'Good', 'OK', 'Miss'}
+        local JUDGE_SHORT = {Perfect = 'PERF', Great = 'GRT', Good = 'GOOD', OK = 'OK', Miss = 'MISS'}
+        local MAX_CURVE_NPS = 20
+        local CURVE_BARS = 20
+        local NOTE_POOL_SIZE = 28
+
+        local function computePreviewWeights(cfg, nps)
+            local smart = cfg.smartJudgment ~= false
+            local easy = tonumber(cfg.easyNps) or 3.5
+            local hard = math.max(easy + 0.5, tonumber(cfg.hardNps) or 10.0)
+            local intensity = math.clamp((tonumber(cfg.intensity) or 100) / 100, 0.25, 2.5)
+            local raw = math.clamp((nps - easy) / (hard - easy), 0, 1)
+            local stress = smart and (raw * raw * (3 - 2 * raw)) or 1
+
+            if (smart and stress <= 0.001) then
+                return {Perfect = 100, Great = 0, Good = 0, OK = 0, Miss = 0}, 0
+            end
+
+            if (cfg.useRatios ~= false) then
+                local scale = smart and math.clamp(stress * intensity, 0, 2.5) or 1
+                local basePerf = math.max(0, tonumber(cfg.perfect) or 55)
+                local wGreat = math.max(0, tonumber(cfg.great) or 26) * scale
+                local wGood = math.max(0, tonumber(cfg.good) or 11) * scale
+                local wOk = math.max(0, tonumber(cfg.ok) or 5) * scale
+                local missScale = smart and (scale * math.max(scale, stress)) or 1
+                local wMiss = math.max(0, tonumber(cfg.miss) or 3) * missScale
+                local wPerf = smart
+                    and ((1 - math.clamp(stress, 0, 1)) * 100 + math.clamp(stress, 0, 1) * (basePerf / math.max(1, scale)))
+                    or basePerf
+                local sum = wPerf + wGreat + wGood + wOk + wMiss
+                if (sum <= 0) then
+                    return {Perfect = 100, Great = 0, Good = 0, OK = 0, Miss = 0}, stress
+                end
+                return {
+                    Perfect = (wPerf / sum) * 100,
+                    Great = (wGreat / sum) * 100,
+                    Good = (wGood / sum) * 100,
+                    OK = (wOk / sum) * 100,
+                    Miss = (wMiss / sum) * 100
+                }, stress
+            end
+
+            local jitterMs = math.max(1, tonumber(cfg.jitterMs) or 20)
+            local effJitter = smart and (jitterMs * math.clamp(stress * intensity, 0.15, 2.0)) or jitterMs
+            local biasMs = math.abs(tonumber(cfg.biasMs) or 0)
+            local low = math.max(0, biasMs - effJitter)
+            local high = biasMs + effJitter
+            local span = math.max(1, high - low)
+            local function overlap(a, b)
+                local lo = math.max(low, a)
+                local hi = math.min(high, b)
+                return hi > lo and ((hi - lo) / span) * 100 or 0
+            end
+            local pP = overlap(0, 50)
+            local pGr = overlap(50, 100)
+            local pGo = overlap(100, 150)
+            local pOk = overlap(150, 180)
+            local pM = overlap(180, 1000)
+            local s = pP + pGr + pGo + pOk + pM
+            if (s <= 0) then
+                return {Perfect = 100, Great = 0, Good = 0, OK = 0, Miss = 0}, stress
+            end
+            return {
+                Perfect = (pP / s) * 100,
+                Great = (pGr / s) * 100,
+                Good = (pGo / s) * 100,
+                OK = (pOk / s) * 100,
+                Miss = (pM / s) * 100
+            }, stress
+        end
+
+        local function sampleJudgment(weights)
+            local roll = math.random() * 100
+            local acc = 0
+            for i = 1, #JUDGE_ORDER do
+                local key = JUDGE_ORDER[i]
+                acc += weights[key] or 0
+                if (roll <= acc) then
+                    return key
+                end
+            end
+            return 'Perfect'
+        end
+
+        local function stressColor(stress)
+            if (stress <= 0.02) then
+                return JUDGE_COLORS.Perfect
+            elseif (stress < 0.55) then
+                return blendColor(JUDGE_COLORS.Perfect, JUDGE_COLORS.Good, stress / 0.55)
+            end
+            return blendColor(JUDGE_COLORS.Good, JUDGE_COLORS.Miss, (stress - 0.55) / 0.45)
+        end
+
+        notePreview.refreshVisuals = function(self)
+            local cfg = self.config
+            local nps = self.currentNps
+            local weights, stress = computePreviewWeights(cfg, nps)
+            local easy = tonumber(cfg.easyNps) or 3.5
+            local hard = math.max(easy + 0.5, tonumber(cfg.hardNps) or 10.0)
+            local smart = cfg.smartJudgment ~= false
+            local stCol = smart and stressColor(stress) or theme.Primary
+
+            local phaseTag
+            if (not smart) then
+                phaseTag = string.format('SMART OFF • %.1f NPS • FIXED SLIDERS', nps)
+            elseif (stress <= 0.01) then
+                phaseTag = string.format('SPARSE • %.1f NPS -> FULL PERFECT', nps)
+            elseif (stress < 0.72) then
+                phaseTag = string.format('MEDIUM • %.1f NPS -> STRESS %d%%', nps, math.floor(stress * 100 + 0.5))
+            else
+                phaseTag = string.format('DENSE • %.1f NPS -> CHAOS %d%%', nps, math.floor(stress * 100 + 0.5))
+            end
+
+            self.instances.phaseText.Text = phaseTag
+            self.instances.phaseText.TextColor3 = stCol
+            self.instances.phaseDot.BackgroundColor3 = stCol
+            self.instances.modeBtn.Text = self.pinnedNps ~= nil and 'PIN' or (self.liveNps ~= nil and 'LIVE' or 'AUTO')
+            self.instances.pauseBtn.Text = self.paused and '>' or '||'
+
+            for i = 1, CURVE_BARS do
+                local bar = self.curveBars[i]
+                local sampleNps = ((i - 0.5) / CURVE_BARS) * MAX_CURVE_NPS
+                local _, bStress = computePreviewWeights(cfg, sampleNps)
+                local hScale = smart and math.clamp(0.10 + bStress * 0.86, 0.10, 0.96) or 0.55
+                bar.Size = UDim2.new(1 / CURVE_BARS, -2, hScale, 0)
+                bar.BackgroundColor3 = smart and stressColor(bStress) or theme.Primary
+                bar.BackgroundTransparency = (math.abs(sampleNps - nps) <= (MAX_CURVE_NPS / CURVE_BARS)) and 0.05 or 0.42
+            end
+
+            self.instances.easyLine.Visible = smart
+            self.instances.hardLine.Visible = smart
+            self.instances.easyLine.Position = UDim2.fromScale(math.clamp(easy / MAX_CURVE_NPS, 0.02, 0.98), 0)
+            self.instances.hardLine.Position = UDim2.fromScale(math.clamp(hard / MAX_CURVE_NPS, 0.02, 0.98), 0)
+            self.instances.cursorLine.Position = UDim2.fromScale(math.clamp(nps / MAX_CURVE_NPS, 0.01, 0.99), 0)
+
+            for i = 1, #JUDGE_ORDER do
+                local key = JUDGE_ORDER[i]
+                local pct = math.clamp(weights[key] or 0, 0, 100)
+                local row = self.oddsRows[key]
+                row.fill.Size = UDim2.fromScale(pct / 100, 1)
+                row.pct.Text = string.format('%3d%%', math.floor(pct + 0.5))
+            end
+
+            self.instances.tallyLabel.Text = string.format(
+                'P:%d Gr:%d Go:%d OK:%d M:%d',
+                self.counts.Perfect,
+                self.counts.Great,
+                self.counts.Good,
+                self.counts.OK,
+                self.counts.Miss
+            )
+            return weights, stress
+        end
+
+        notePreview.setConfig = function(self, patch)
+            if (typeof(patch) == 'table') then
+                for k, v in pairs(patch) do
+                    self.config[k] = v
+                end
+            end
+            self:refreshVisuals()
+            return self
+        end
+
+        notePreview.setLiveNps = function(self, nps)
+            if (typeof(nps) == 'number') then
+                self.liveNps = math.clamp(nps, 0, MAX_CURVE_NPS)
+            else
+                self.liveNps = nil
+            end
+            return self
+        end
+
+        notePreview.setPaused = function(self, state)
+            self.paused = state and true or false
+            self:refreshVisuals()
+            return self
+        end
+
+        notePreview.resetStats = function(self)
+            for i = 1, #JUDGE_ORDER do
+                self.counts[JUDGE_ORDER[i]] = 0
+            end
+            self:refreshVisuals()
+            return self
+        end
+
+        notePreview.new = function(self, settings)
+            local new = setmetatable({}, self)
+            new.binds = {}
+            new.paused = false
+            new.pinnedNps = nil
+            new.liveNps = nil
+            new.waveClock = 0
+            new.spawnAccum = 0
+            new.currentNps = 2.5
+            new.lastLane = 1
+            new.popAlpha = 0
+            new.counts = {Perfect = 0, Great = 0, Good = 0, OK = 0, Miss = 0}
+            new.config = {
+                smartJudgment = settings.smartJudgment ~= false,
+                useRatios = settings.useRatios ~= false,
+                easyNps = tonumber(settings.easyNps) or 3.5,
+                hardNps = tonumber(settings.hardNps) or 10.0,
+                intensity = tonumber(settings.intensity) or 100,
+                perfect = tonumber(settings.perfect) or 55,
+                great = tonumber(settings.great) or 26,
+                good = tonumber(settings.good) or 11,
+                ok = tonumber(settings.ok) or 5,
+                miss = tonumber(settings.miss) or 3,
+                biasMs = tonumber(settings.biasMs) or 4,
+                jitterMs = tonumber(settings.jitterMs) or 20
+            }
+
+            local insts = {}
+            local controlFrame = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#control',
+                Size = UDim2.new(1, 0, 0, 304),
+                ZIndex = 34
+            })
+            insts.controlFrame = controlFrame
+
+            local card = create('Frame', {
+                BackgroundColor3 = theme.Inset1,
+                BorderSizePixel = 0,
+                Name = '#card',
+                Position = UDim2.fromOffset(5, 2),
+                Size = UDim2.new(1, -10, 0, 298),
+                ZIndex = 35
+            }, controlFrame)
+            makeCorner(card, cornerPx)
+            makeStroke(card, theme.Stroke, 1)
+            insts.card = card
+
+            local accentBar = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Name = '#accent',
+                Size = UDim2.new(0, 2, 1, 0),
+                ZIndex = 36
+            }, card)
+            makeGradient(accentBar, theme.Primary, theme.Secondary, 90)
+
+            local inner = create('Frame', {
+                BackgroundTransparency = 1,
+                Name = '#inner',
+                Position = UDim2.fromOffset(8, 5),
+                Size = UDim2.new(1, -15, 1, -10),
+                ZIndex = 36
+            }, card)
+
+            local header = create('Frame', {
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, 20),
+                ZIndex = 37
+            }, inner)
+
+            insts.title = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Size = UDim2.new(1, -68, 1, 0),
+                Text = tostring(settings.text or settings.title or 'smart note preview'),
+                TextColor3 = theme.TextPrimary,
+                TextSize = 11,
+                TextStrokeColor3 = theme.TextStroke,
+                TextStrokeTransparency = 0.85,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 37
+            }, header)
+
+            local modeBtn = create('TextButton', {
+                AutoButtonColor = false,
+                BackgroundColor3 = theme.Button2,
+                BorderSizePixel = 0,
+                Font = currentFont,
+                Position = UDim2.new(1, -62, 0, 1),
+                Size = UDim2.fromOffset(36, 17),
+                Text = 'AUTO',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 9,
+                ZIndex = 38
+            }, header)
+            makeCorner(modeBtn, math.min(cornerPx, 3))
+            makeStroke(modeBtn, theme.Stroke, 1)
+            insts.modeBtn = modeBtn
+
+            local pauseBtn = create('TextButton', {
+                AutoButtonColor = false,
+                BackgroundColor3 = theme.Button2,
+                BorderSizePixel = 0,
+                Font = currentFont,
+                Position = UDim2.new(1, -22, 0, 1),
+                Size = UDim2.fromOffset(22, 17),
+                Text = '||',
+                TextColor3 = theme.TextPrimary,
+                TextSize = 9,
+                ZIndex = 38
+            }, header)
+            makeCorner(pauseBtn, math.min(cornerPx, 3))
+            makeStroke(pauseBtn, theme.Stroke, 1)
+            insts.pauseBtn = pauseBtn
+
+            local phaseRow = create('Frame', {
+                BackgroundColor3 = theme.Window1,
+                BorderSizePixel = 0,
+                Position = UDim2.fromOffset(0, 22),
+                Size = UDim2.new(1, 0, 0, 18),
+                ZIndex = 37
+            }, inner)
+            makeCorner(phaseRow, math.min(cornerPx, 3))
+            makeStroke(phaseRow, theme.Stroke, 1)
+
+            insts.phaseDot = create('Frame', {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = JUDGE_COLORS.Perfect,
+                BorderSizePixel = 0,
+                Position = UDim2.new(0, 6, 0.5, 0),
+                Size = UDim2.fromOffset(6, 6),
+                ZIndex = 38
+            }, phaseRow)
+            makeCorner(insts.phaseDot, 3, true)
+
+            insts.phaseText = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Position = UDim2.fromOffset(16, 0),
+                Size = UDim2.new(1, -20, 1, 0),
+                Text = 'SPARSE • 2.5 NPS -> FULL PERFECT',
+                TextColor3 = JUDGE_COLORS.Perfect,
+                TextSize = 10,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 38
+            }, phaseRow)
+
+            local highway = create('Frame', {
+                BackgroundColor3 = theme.Window1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Position = UDim2.fromOffset(0, 44),
+                Size = UDim2.new(1, 0, 0, 96),
+                ZIndex = 37
+            }, inner)
+            makeCorner(highway, math.min(cornerPx, 3))
+            makeStroke(highway, theme.Stroke, 1)
+            insts.highway = highway
+
+            for lane = 1, 4 do
+                if (lane > 1) then
+                    create('Frame', {
+                        BackgroundColor3 = theme.Stroke,
+                        BackgroundTransparency = 0.55,
+                        BorderSizePixel = 0,
+                        Position = UDim2.fromScale((lane - 1) / 4, 0),
+                        Size = UDim2.new(0, 1, 1, 0),
+                        ZIndex = 38
+                    }, highway)
+                end
+            end
+
+            create('Frame', {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = JUDGE_COLORS.Perfect,
+                BackgroundTransparency = 0.86,
+                BorderSizePixel = 0,
+                Position = UDim2.fromScale(0, 0.78),
+                Size = UDim2.new(1, 0, 0, 14),
+                ZIndex = 38
+            }, highway)
+
+            create('Frame', {
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = theme.TextDim,
+                BackgroundTransparency = 0.35,
+                BorderSizePixel = 0,
+                Position = UDim2.fromScale(0, 0.78),
+                Size = UDim2.new(1, 0, 0, 1),
+                ZIndex = 39
+            }, highway)
+
+            new.receptors = {}
+            new.receptorFlash = {0, 0, 0, 0}
+            for lane = 1, 4 do
+                local rec = create('Frame', {
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    BackgroundColor3 = theme.Inset2,
+                    BorderSizePixel = 0,
+                    Position = UDim2.fromScale((lane - 0.5) / 4, 0.78),
+                    Size = UDim2.new(0.20, 0, 0, 9),
+                    ZIndex = 40
+                }, highway)
+                makeCorner(rec, 4, true)
+                local recStroke = makeStroke(rec, LANE_COLORS[lane], 1)
+                new.receptors[lane] = {frame = rec, stroke = recStroke}
+            end
+
+            new.notePool = {}
+            for i = 1, NOTE_POOL_SIZE do
+                local nf = create('Frame', {
+                    AnchorPoint = Vector2.new(0.5, 0.5),
+                    BackgroundColor3 = LANE_COLORS[1],
+                    BorderSizePixel = 0,
+                    Position = UDim2.fromScale(0.125, -0.2),
+                    Size = UDim2.new(0.18, 0, 0, 7),
+                    Visible = false,
+                    ZIndex = 41
+                }, highway)
+                makeCorner(nf, 3, true)
+                new.notePool[i] = {
+                    frame = nf,
+                    active = false,
+                    lane = 1,
+                    y = 0,
+                    judge = 'Perfect',
+                    hitY = 0.78,
+                    hit = false,
+                    fade = 0
+                }
+            end
+
+            insts.popLabel = create('TextLabel', {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Position = UDim2.fromScale(0.5, 0.28),
+                Size = UDim2.new(1, 0, 0, 18),
+                Text = '',
+                TextColor3 = JUDGE_COLORS.Perfect,
+                TextSize = 12,
+                TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
+                TextStrokeTransparency = 0.2,
+                TextTransparency = 1,
+                ZIndex = 43
+            }, highway)
+
+            local curveBox = create('Frame', {
+                Active = true,
+                BackgroundColor3 = theme.Window1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Position = UDim2.fromOffset(0, 144),
+                Size = UDim2.new(1, 0, 0, 52),
+                ZIndex = 37
+            }, inner)
+            makeCorner(curveBox, math.min(cornerPx, 3))
+            makeStroke(curveBox, theme.Stroke, 1)
+            insts.curveBox = curveBox
+
+            local barsHolder = create('Frame', {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(4, 14),
+                Size = UDim2.new(1, -8, 1, -18),
+                ZIndex = 38
+            }, curveBox)
+
+            new.curveBars = {}
+            for i = 1, CURVE_BARS do
+                local bar = create('Frame', {
+                    AnchorPoint = Vector2.new(0, 1),
+                    BackgroundColor3 = JUDGE_COLORS.Perfect,
+                    BackgroundTransparency = 0.4,
+                    BorderSizePixel = 0,
+                    Position = UDim2.new((i - 1) / CURVE_BARS, 1, 1, 0),
+                    Size = UDim2.new(1 / CURVE_BARS, -2, 0.15, 0),
+                    ZIndex = 38
+                }, barsHolder)
+                new.curveBars[i] = bar
+            end
+
+            insts.easyLine = create('Frame', {
+                BackgroundColor3 = JUDGE_COLORS.Perfect,
+                BorderSizePixel = 0,
+                Position = UDim2.fromScale(0.18, 0),
+                Size = UDim2.new(0, 1, 1, 0),
+                ZIndex = 40
+            }, barsHolder)
+
+            insts.hardLine = create('Frame', {
+                BackgroundColor3 = JUDGE_COLORS.Miss,
+                BorderSizePixel = 0,
+                Position = UDim2.fromScale(0.5, 0),
+                Size = UDim2.new(0, 1, 1, 0),
+                ZIndex = 40
+            }, barsHolder)
+
+            insts.cursorLine = create('Frame', {
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Position = UDim2.fromScale(0.12, 0),
+                Size = UDim2.new(0, 2, 1, 0),
+                ZIndex = 41
+            }, barsHolder)
+
+            create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Position = UDim2.fromOffset(5, 1),
+                Size = UDim2.new(1, -10, 0, 12),
+                Text = 'EASY -> DENSE STRESS (DRAG TO TEST NPS)',
+                TextColor3 = theme.TextDim,
+                TextSize = 8,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 40
+            }, curveBox)
+
+            local oddsBox = create('Frame', {
+                BackgroundColor3 = theme.Window1,
+                BorderSizePixel = 0,
+                Position = UDim2.fromOffset(0, 200),
+                Size = UDim2.new(1, 0, 0, 68),
+                ZIndex = 37
+            }, inner)
+            makeCorner(oddsBox, math.min(cornerPx, 3))
+            makeStroke(oddsBox, theme.Stroke, 1)
+
+            new.oddsRows = {}
+            for idx = 1, #JUDGE_ORDER do
+                local key = JUDGE_ORDER[idx]
+                local rowY = 4 + (idx - 1) * 12
+                local lbl = create('TextLabel', {
+                    BackgroundTransparency = 1,
+                    Font = currentFont,
+                    Position = UDim2.fromOffset(5, rowY),
+                    Size = UDim2.fromOffset(30, 11),
+                    Text = JUDGE_SHORT[key],
+                    TextColor3 = JUDGE_COLORS[key],
+                    TextSize = 9,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 38
+                }, oddsBox)
+
+                local track = create('Frame', {
+                    BackgroundColor3 = theme.Inset2,
+                    BorderSizePixel = 0,
+                    Position = UDim2.new(0, 38, 0, rowY + 3),
+                    Size = UDim2.new(1, -74, 0, 5),
+                    ZIndex = 38
+                }, oddsBox)
+                makeCorner(track, 2, true)
+
+                local fill = create('Frame', {
+                    BackgroundColor3 = JUDGE_COLORS[key],
+                    BorderSizePixel = 0,
+                    Size = UDim2.fromScale(0, 1),
+                    ZIndex = 39
+                }, track)
+                makeCorner(fill, 2, true)
+
+                local pctLbl = create('TextLabel', {
+                    BackgroundTransparency = 1,
+                    Font = currentFont,
+                    Position = UDim2.new(1, -33, 0, rowY),
+                    Size = UDim2.fromOffset(29, 11),
+                    Text = '  0%',
+                    TextColor3 = theme.TextDim,
+                    TextSize = 9,
+                    TextXAlignment = Enum.TextXAlignment.Right,
+                    ZIndex = 38
+                }, oddsBox)
+
+                new.oddsRows[key] = {label = lbl, track = track, fill = fill, pct = pctLbl}
+            end
+
+            local footer = create('Frame', {
+                BackgroundTransparency = 1,
+                Position = UDim2.fromOffset(0, 271),
+                Size = UDim2.new(1, 0, 0, 17),
+                ZIndex = 37
+            }, inner)
+
+            insts.tallyLabel = create('TextLabel', {
+                BackgroundTransparency = 1,
+                Font = currentFont,
+                Size = UDim2.new(1, -36, 1, 0),
+                Text = 'P:0 Gr:0 Go:0 OK:0 M:0',
+                TextColor3 = theme.TextDim,
+                TextSize = 9,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 38
+            }, footer)
+
+            local rstBtn = create('TextButton', {
+                AutoButtonColor = false,
+                BackgroundColor3 = theme.Button2,
+                BorderSizePixel = 0,
+                Font = currentFont,
+                Position = UDim2.new(1, -32, 0, 1),
+                Size = UDim2.fromOffset(32, 15),
+                Text = 'RST',
+                TextColor3 = theme.TextDim,
+                TextSize = 9,
+                ZIndex = 38
+            }, footer)
+            makeCorner(rstBtn, math.min(cornerPx, 3))
+            makeStroke(rstBtn, theme.Stroke, 1)
+
+            new.instances = insts
+
+            local scrubbing = false
+            local function scrubFromX(absX)
+                local ax = barsHolder.AbsolutePosition.X
+                local aw = math.max(1, barsHolder.AbsoluteSize.X)
+                local frac = math.clamp((absX - ax) / aw, 0.03, 1)
+                new.pinnedNps = math.floor(frac * MAX_CURVE_NPS * 2 + 0.5) / 2
+                new.currentNps = new.pinnedNps
+                new:refreshVisuals()
+            end
+
+            curveBox.InputBegan:Connect(function(io)
+                if (isPrimaryInput(io)) then
+                    scrubbing = true
+                    scrubFromX(io.Position.X)
+                end
+            end)
+            ui.trackConnection(inputService.InputChanged:Connect(function(io)
+                if (scrubbing and isMoveInput(io)) then
+                    scrubFromX(io.Position.X)
+                end
+            end))
+            ui.trackConnection(inputService.InputEnded:Connect(function(io)
+                if (scrubbing and isPrimaryInput(io)) then
+                    scrubbing = false
+                end
+            end))
+
+            modeBtn.MouseButton1Click:Connect(function()
+                if (new.pinnedNps ~= nil) then
+                    new.pinnedNps = nil
+                else
+                    new.pinnedNps = new.currentNps
+                end
+                new:refreshVisuals()
+            end)
+
+            pauseBtn.MouseButton1Click:Connect(function()
+                new:setPaused(not new.paused)
+            end)
+
+            rstBtn.MouseButton1Click:Connect(function()
+                new:resetStats()
+            end)
+
+            card.MouseEnter:Connect(function()
+                new:showTooltip()
+            end)
+            card.MouseLeave:Connect(function()
+                new:hideTooltip()
+            end)
+
+            local function spawnNote(weights, allowChord)
+                local chosenLane = math.random(1, 4)
+                if (chosenLane == new.lastLane) then
+                    chosenLane = (chosenLane % 4) + 1
+                end
+                new.lastLane = chosenLane
+                local toSpawn = {chosenLane}
+                if (allowChord and math.random() < 0.34) then
+                    local second = (chosenLane + math.random(1, 3) - 1) % 4 + 1
+                    table.insert(toSpawn, second)
+                end
+                for _, lane in ipairs(toSpawn) do
+                    for i = 1, NOTE_POOL_SIZE do
+                        local slot = new.notePool[i]
+                        if (not slot.active) then
+                            local judge = sampleJudgment(weights)
+                            local hitY = 0.78
+                            if (judge == 'Great') then
+                                hitY = 0.73
+                            elseif (judge == 'Good') then
+                                hitY = 0.68
+                            elseif (judge == 'OK') then
+                                hitY = 0.63
+                            elseif (judge == 'Miss') then
+                                hitY = 1.08
+                            end
+                            slot.active = true
+                            slot.lane = lane
+                            slot.y = -0.04
+                            slot.judge = judge
+                            slot.hitY = hitY
+                            slot.hit = false
+                            slot.fade = 0
+                            slot.frame.Position = UDim2.fromScale((lane - 0.5) / 4, -0.04)
+                            slot.frame.BackgroundColor3 = LANE_COLORS[lane]
+                            slot.frame.BackgroundTransparency = 0
+                            slot.frame.Visible = true
+                            break
+                        end
+                    end
+                end
+            end
+
+            local uiSyncAccum = 0
+            local con = renderService.RenderStepped:Connect(function(dt)
+                if (ui._terminated or not card.Parent) then
+                    return
+                end
+                if (not card.Visible or not controlFrame.Visible) then
+                    return
+                end
+                local menuFrame = new.section and new.section.menu and new.section.menu.instances and new.section.menu.instances.menuFrame
+                if (menuFrame and not menuFrame.Visible) then
+                    return
+                end
+                local winFrame = new.section and new.section.menu and new.section.menu.window and new.section.menu.window.instances and new.section.menu.window.instances.mainFrame
+                if (winFrame and not winFrame.Visible) then
+                    return
+                end
+                if (new.paused) then
+                    return
+                end
+
+                local cdt = math.min(dt, 0.05)
+                if (new.pinnedNps ~= nil) then
+                    new.currentNps = new.pinnedNps
+                elseif (new.liveNps ~= nil and new.liveNps > 0.2) then
+                    new.currentNps = new.currentNps + (new.liveNps - new.currentNps) * math.min(1, cdt * 6)
+                else
+                    new.waveClock += cdt
+                    local cycle = (new.waveClock % 10) / 10
+                    local wave
+                    if (cycle < 0.26) then
+                        wave = 0.08 + 0.05 * math.sin(cycle * 24)
+                    elseif (cycle < 0.58) then
+                        local u = (cycle - 0.26) / 0.32
+                        wave = 0.08 + 0.78 * (u * u * (3 - 2 * u))
+                    elseif (cycle < 0.80) then
+                        wave = 0.86 + 0.10 * math.sin(cycle * 35)
+                    else
+                        local u = (cycle - 0.80) / 0.20
+                        wave = 0.86 * (1 - u) + 0.08 * u
+                    end
+                    local easy = tonumber(new.config.easyNps) or 3.5
+                    local hard = math.max(easy + 1, tonumber(new.config.hardNps) or 10.0)
+                    local loNps = math.max(1.2, easy * 0.55)
+                    local hiNps = math.min(MAX_CURVE_NPS - 0.5, hard * 1.25)
+                    new.currentNps = loNps + (hiNps - loNps) * math.clamp(wave, 0, 1)
+                end
+
+                local weights, stress = computePreviewWeights(new.config, new.currentNps)
+                new.spawnAccum += cdt * math.max(0.8, new.currentNps)
+                local spawned = 0
+                while (new.spawnAccum >= 1 and spawned < 3) do
+                    new.spawnAccum -= 1
+                    spawnNote(weights, stress > 0.55)
+                    spawned += 1
+                end
+
+                local scrollSpeed = 1.25 + math.clamp(new.currentNps / 22, 0, 0.75)
+                for i = 1, NOTE_POOL_SIZE do
+                    local slot = new.notePool[i]
+                    if (slot.active) then
+                        if (not slot.hit) then
+                            slot.y += cdt * scrollSpeed
+                            slot.frame.Position = UDim2.fromScale((slot.lane - 0.5) / 4, slot.y)
+                            if (slot.judge == 'Miss') then
+                                if (slot.y >= 0.84) then
+                                    slot.hit = true
+                                    slot.fade = 1
+                                    slot.frame.BackgroundColor3 = JUDGE_COLORS.Miss
+                                    new.counts.Miss += 1
+                                    new.receptorFlash[slot.lane] = 1
+                                    new.receptors[slot.lane].frame.BackgroundColor3 = JUDGE_COLORS.Miss
+                                    insts.popLabel.Text = 'MISS'
+                                    insts.popLabel.TextColor3 = JUDGE_COLORS.Miss
+                                    new.popAlpha = 1
+                                end
+                            elseif (slot.y >= slot.hitY) then
+                                slot.hit = true
+                                slot.fade = 1
+                                local jCol = JUDGE_COLORS[slot.judge] or JUDGE_COLORS.Perfect
+                                slot.frame.BackgroundColor3 = jCol
+                                new.counts[slot.judge] = (new.counts[slot.judge] or 0) + 1
+                                new.receptorFlash[slot.lane] = 1
+                                new.receptors[slot.lane].frame.BackgroundColor3 = jCol
+                                insts.popLabel.Text = string.upper(slot.judge)
+                                insts.popLabel.TextColor3 = jCol
+                                new.popAlpha = 1
+                            end
+                        else
+                            slot.fade -= cdt * 5.2
+                            if (slot.judge == 'Miss') then
+                                slot.y += cdt * scrollSpeed * 0.75
+                                slot.frame.Position = UDim2.fromScale((slot.lane - 0.5) / 4, slot.y)
+                            end
+                            if (slot.fade <= 0) then
+                                slot.active = false
+                                slot.frame.Visible = false
+                            else
+                                slot.frame.BackgroundTransparency = 1 - slot.fade
+                            end
+                        end
+                    end
+                end
+
+                for lane = 1, 4 do
+                    if (new.receptorFlash[lane] > 0) then
+                        new.receptorFlash[lane] = math.max(0, new.receptorFlash[lane] - cdt * 5.5)
+                        if (new.receptorFlash[lane] <= 0.01) then
+                            new.receptors[lane].frame.BackgroundColor3 = theme.Inset2
+                        end
+                    end
+                end
+
+                if (new.popAlpha > 0) then
+                    new.popAlpha = math.max(0, new.popAlpha - cdt * 2.6)
+                    insts.popLabel.TextTransparency = 1 - new.popAlpha
+                    insts.popLabel.TextStrokeTransparency = 0.2 + (1 - new.popAlpha) * 0.8
+                end
+
+                uiSyncAccum += cdt
+                if (uiSyncAccum >= 0.08) then
+                    uiSyncAccum = 0
+                    new:refreshVisuals()
+                end
+            end)
+            ui.trackConnection(con)
+
+            new:refreshVisuals()
+            return new
+        end
+
+        elemClasses.section.addNotePreview = function(self, settings)
+            settings = typeof(settings) == 'table' and settings or {}
+            local np = notePreview:new(settings)
+            np.section = self
+            np.name = settings.text or settings.title or 'smart note preview'
+            table.insert(self.controls, np)
+            np.instances.controlFrame.Parent = self.instances.controlMenu
+            if (settings.tooltip) then
+                np:setTooltip(settings.tooltip)
+            end
+            return np
+        end
+        elemClasses.section.addSmartNotePreview = elemClasses.section.addNotePreview
+
+        elemClasses.notePreview = notePreview
+    end
 end
 
 local function applyFontToTree(root, fontFace)

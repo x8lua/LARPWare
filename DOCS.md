@@ -426,6 +426,32 @@ local info = sec:addParagraph({
 info:setContent('updated title', 'updated body text')
 ```
 
+### Smart Note Preview — `sec:addNotePreview(settings)` (alias `sec:addSmartNotePreview`)
+
+Interactive live 4-lane rhythm simulator with a scrubbable NPS density stress curve, Easy/Dense threshold markers, live effective `Perfect / Great / Good / OK / Miss` probability bars, and auto-pausing render loop.
+
+```lua
+local preview = sec:addNotePreview({
+    text = 'smart note preview',
+    smartJudgment = true,
+    useRatios = true,
+    easyNps = 3.5,
+    hardNps = 10.0,
+    intensity = 100,
+    perfect = 55,
+    great = 26,
+    good = 11,
+    ok = 5,
+    miss = 3,
+    tooltip = 'Drag the NPS stress graph to test any note density'
+})
+
+preview:setConfig({easyNps = 4.0, hardNps = 12.0, perfect = 80, great = 15, good = 4, ok = 1, miss = 0})
+preview:setLiveNps(nil)
+preview:setPaused(false)
+preview:resetStats()
+```
+
 ### Built-in Appearance Controls
 
 ```lua
