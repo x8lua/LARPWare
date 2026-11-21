@@ -18,7 +18,7 @@ do
     end
 end
 
-local currentTextScale = 1
+local currentTextScale = 1.15
 local currentTransparency = 0
 local enableIntro = true
 local enableMobileButton = (inputService.TouchEnabled and not inputService.KeyboardEnabled)
@@ -4581,7 +4581,7 @@ do
                 end
 
                 tScaleValBtn.MouseButton1Click:Connect(function()
-                    ui.setTextScale(1)
+                    ui.setTextScale(1.15)
                 end)
 
                 local draggingTScale = false
@@ -12668,7 +12668,7 @@ do
         ui.setThemePreset('crimson')
         ui.setFont('buildermono')
         ui.setScale(1)
-        ui.setTextScale(1)
+        ui.setTextScale(1.15)
         ui.setTransparency(0)
         ui.setRounding(false)
         ui.setSmoothDragging(false)

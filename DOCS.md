@@ -15,7 +15,7 @@ local ui = uiLoader({
     theme = 'crimson',
     font = 'buildermono',
     scale = 1,
-    textScale = 1,
+    textScale = 1.15,
     rounding = false,
     smoothDragging = false,
     intro = true
@@ -29,7 +29,7 @@ local ui = uiLoader({
 | `theme` | `string \| table` | `'crimson'` | Preset name (`'crimson'`, `'cobalt'`, `'emerald'`, `'amber'`, `'violet'`, `'cherry'`, `'rose'`, `'monochrome'`) or custom theme color table. |
 | `font` | `string \| number \| Font \| Enum.Font` | `'buildermono'` | Initial font across the entire UI. Accepts any built-in `Enum.Font`, Creator Store font name (e.g. `'inter'`, `'buildermono'`, `'firasans'`), or numeric asset ID. |
 | `scale` | `number` | `1` | Inner content scale (`0.5` – `2.5`). Scales everything inside the window without changing the outer window size. |
-| `textScale` | `number` | `1` | Global text size multiplier (`0.6` – `2.0`). |
+| `textScale` | `number` | `1.15` | Global text size multiplier (`0.6` – `2.0`). |
 | `rounding` | `boolean` | `true` | Enables subtle corner rounding on panels and controls. |
 | `smoothDragging` | `boolean` | `true` | Enables smooth inertia while dragging windows and HUD panels. |
 | `intro` | `boolean` | `true` | Plays the in-window `L A R P` intro animation when the window opens. |
@@ -456,7 +456,7 @@ Every change updates all live windows, controls, HUD overlays, and future cloned
 | `ui.getTransparency()` | Returns current transparency value. |
 | `ui.setRounding(enabled)` | Toggles sharp (`0px`) vs rounded (`4px`) corners across the UI live. |
 | `ui.setSmoothDragging(enabled)` | Toggles drag inertia live. |
-| `ui.resetTheme()` | Restores default `crimson` preset, `buildermono` font, `1.0x` scales, `0` transparency, sharp corners. |
+| `ui.resetTheme()` | Restores default `crimson` preset, `buildermono` font, `1.0x` content / `1.15x` text scales, `0` transparency, sharp corners. |
 
 ### Fonts & Scaling
 
@@ -567,7 +567,7 @@ local uiLoader = loadstring(game:HttpGet('https://api.x8stuff.lol/larpware/libra
 local ui = uiLoader({
     font = 'buildermono',
     scale = 1,
-    textScale = 1,
+    textScale = 1.15,
     rounding = false,
     smoothDragging = false,
     intro = true

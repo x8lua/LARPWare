@@ -5,7 +5,7 @@ local ui = uiLoader({
     smoothDragging = false,
     font = 'buildermono',
     scale = 1,
-    textScale = 1
+    textScale = 1.15
 })
 
 ui.autoDisableToggles = true
