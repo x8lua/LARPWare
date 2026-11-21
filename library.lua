@@ -7411,6 +7411,7 @@ do
             makeTopSheen(header, 36)
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -7724,6 +7725,7 @@ do
             instances.controlFrame = controlFrame
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -8400,6 +8402,7 @@ do
             makeCorner(clickRegion, cornerPx)
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -9076,6 +9079,7 @@ do
             makeCorner(back, cornerPx)
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -9153,7 +9157,7 @@ do
                     display.Text = '[None]'
                 else
                     self.hotkey = io.KeyCode
-                    self.set = time()
+                    self.set = os.clock()
                     display.Text = ('[%s]'):format(kc)
                 end
                 self.inputCon:Disconnect()
@@ -9309,6 +9313,7 @@ do
             makeTopSheen(header, 36)
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -9783,6 +9788,7 @@ do
             instances.controlFrame = controlFrame
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -10364,6 +10370,7 @@ do
             makeTopSheen(fill, 37)
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -10484,6 +10491,7 @@ do
             instances.controlFrame = controlFrame
 
             local label = create('TextLabel', {
+                Active = false,
                 BackgroundTransparency = 1,
                 Font = currentFont,
                 Name = '#label',
@@ -13290,20 +13298,26 @@ do
         local hotkeys = ui.hotkeys
         ui.hkCon = inputService.InputBegan:Connect(function(io, gpe)
             if (ui._terminated) then return end
-            if ((not gpe) and (io.UserInputType == Enum.UserInputType.Keyboard)) then
-                local kc = io.KeyCode
-                for i = 1, #hotkeys do
-                    local hk = hotkeys[i]
-                    if (hk.hotkey == kc and hk.set ~= time()) then
-                        local linkedControl = hk.linkedControl
-                        if (linkedControl) then
-                            task.spawn(function()
-                                linkedControl.__hotkeyFunc(linkedControl)
-                                if (ui.refreshKeybindList) then
-                                    ui.refreshKeybindList()
-                                end
-                            end)
-                        end
+            if (io.UserInputType ~= Enum.UserInputType.Keyboard) then return end
+            if (inputService:GetFocusedTextBox() ~= nil) then return end
+            for i = 1, #hotkeys do
+                if (hotkeys[i].inputCon ~= nil) then
+                    return
+                end
+            end
+            local kc = io.KeyCode
+            local now = os.clock()
+            for i = 1, #hotkeys do
+                local hk = hotkeys[i]
+                if (hk.hotkey == kc and (not hk.set or (now - hk.set) > 0.08)) then
+                    local linkedControl = hk.linkedControl
+                    if (linkedControl and (not gpe or linkedControl.class == 'window')) then
+                        task.spawn(function()
+                            linkedControl.__hotkeyFunc(linkedControl)
+                            if (ui.refreshKeybindList) then
+                                ui.refreshKeybindList()
+                            end
+                        end)
                     end
                 end
             end
