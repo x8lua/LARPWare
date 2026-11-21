@@ -1747,7 +1747,9 @@ local function syncCursorUnlock(shouldActive)
             cursorScreen.Enabled = true
         end
         pcall(function()
-            inputService.MouseBehavior = Enum.MouseBehavior.Default
+            if (not inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)) then
+                inputService.MouseBehavior = Enum.MouseBehavior.Default
+            end
             if (hasMouse) then
                 inputService.MouseIconEnabled = false
             end
@@ -1766,7 +1768,12 @@ local function syncCursorUnlock(shouldActive)
                 if (cursorTerminated or not enableCursorUnlock or not cursorUnlockActive) then
                     return
                 end
-                if (inputService.MouseBehavior ~= Enum.MouseBehavior.Default) then
+                local rmbDown = inputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+                if (rmbDown) then
+                    if (inputService.MouseBehavior == Enum.MouseBehavior.LockCenter) then
+                        inputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+                    end
+                elseif (inputService.MouseBehavior ~= Enum.MouseBehavior.Default) then
                     inputService.MouseBehavior = Enum.MouseBehavior.Default
                 end
                 local mouseOn = inputService.MouseEnabled == true
