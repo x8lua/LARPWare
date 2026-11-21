@@ -1667,7 +1667,7 @@ do
         Text = '',
         Visible = false,
         ZIndex = 0
-    }, cursorScreen)
+    })
 
     cursorRoot = create('Frame', {
         Active = false,
@@ -1728,23 +1728,20 @@ do
 end
 
 local lastCursorX, lastCursorY = nil, nil
-local savedMouseIconEnabled = nil
-local savedMouseBehavior = nil
+local cursorUnlockActive = false
 local cursorTerminated = false
 
 local function syncCursorUnlock(shouldActive)
     local active = (shouldActive == true) and (enableCursorUnlock == true) and (not cursorTerminated)
     if (active) then
+        cursorUnlockActive = true
         local hasMouse = inputService.MouseEnabled == true
-        if (savedMouseIconEnabled == nil) then
-            savedMouseIconEnabled = inputService.MouseIconEnabled
-        end
-        if (savedMouseBehavior == nil) then
-            savedMouseBehavior = inputService.MouseBehavior
-        end
-        if (cursorModalBtn and cursorModalBtn.Parent) then
+        if (cursorModalBtn) then
             cursorModalBtn.Modal = true
             cursorModalBtn.Visible = true
+            if (cursorScreen and cursorScreen.Parent and cursorModalBtn.Parent ~= cursorScreen) then
+                cursorModalBtn.Parent = cursorScreen
+            end
         end
         if (cursorScreen and cursorScreen.Parent) then
             cursorScreen.Enabled = true
@@ -1766,7 +1763,7 @@ local function syncCursorUnlock(shouldActive)
         if (not cursorUnlockBound) then
             cursorUnlockBound = true
             renderService:BindToRenderStep(cursorStepName, Enum.RenderPriority.Last.Value + 100, function()
-                if (cursorTerminated or not enableCursorUnlock) then
+                if (cursorTerminated or not enableCursorUnlock or not cursorUnlockActive) then
                     return
                 end
                 if (inputService.MouseBehavior ~= Enum.MouseBehavior.Default) then
@@ -1793,6 +1790,8 @@ local function syncCursorUnlock(shouldActive)
             end)
         end
     else
+        local wasActive = cursorUnlockActive or cursorUnlockBound
+        cursorUnlockActive = false
         if (cursorUnlockBound) then
             cursorUnlockBound = false
             pcall(renderService.UnbindFromRenderStep, renderService, cursorStepName)
@@ -1801,35 +1800,19 @@ local function syncCursorUnlock(shouldActive)
         if (cursorRoot and cursorRoot.Parent) then
             cursorRoot.Visible = false
         end
-        if (cursorModalBtn and cursorModalBtn.Parent) then
+        if (cursorModalBtn) then
             cursorModalBtn.Modal = false
             cursorModalBtn.Visible = false
+            cursorModalBtn.Parent = nil
         end
         if (cursorScreen and cursorScreen.Parent) then
             cursorScreen.Enabled = false
         end
-        if (savedMouseIconEnabled ~= nil) then
-            local restoreIcon = savedMouseIconEnabled
-            savedMouseIconEnabled = nil
+        if (wasActive) then
             pcall(function()
-                inputService.MouseIconEnabled = (restoreIcon ~= false)
+                inputService.MouseBehavior = Enum.MouseBehavior.Default
+                inputService.MouseIconEnabled = true
             end)
-        end
-        if (savedMouseBehavior ~= nil) then
-            local restoreBehavior = savedMouseBehavior
-            savedMouseBehavior = nil
-            if (restoreBehavior ~= Enum.MouseBehavior.Default) then
-                pcall(function()
-                    inputService.MouseBehavior = restoreBehavior
-                end)
-                task.defer(function()
-                    if (not cursorUnlockBound and not cursorTerminated) then
-                        pcall(function()
-                            inputService.MouseBehavior = restoreBehavior
-                        end)
-                    end
-                end)
-            end
         end
     end
 end
@@ -3783,14 +3766,25 @@ do
                 return
             end
             local anyVis = false
+            local anyExpanded = false
             for _, w in ipairs(ui.windows) do
                 if (w.instances and w.instances.mainFrame and w.instances.mainFrame.Visible) then
                     anyVis = true
-                    break
+                    if (not w.minimized) then
+                        anyExpanded = true
+                    end
+                    for _, m in ipairs(w.menus or {}) do
+                        if (m.selected and m.instances and m.instances.menuFrame) then
+                            m.instances.menuFrame.Visible = true
+                            if (not m._slideTween) then
+                                m.instances.menuFrame.Position = UDim2.fromScale(0, 0)
+                            end
+                        end
+                    end
                 end
             end
             uiScreen.Enabled = anyVis
-            syncCursorUnlock(anyVis)
+            syncCursorUnlock(anyExpanded)
             if (not anyVis) then
                 tooltip.showing = false
                 tooltip.handle = nil
@@ -3808,7 +3802,11 @@ do
         window.setVisible = function(self, state)
             local mf = self.instances and self.instances.mainFrame
             if (not mf or not mf.Parent) then return self end
-            mf.Visible = state and true or false
+            local nextVis = state and true or false
+            mf.Visible = nextVis
+            if (nextVis and not self.minimized and self.size) then
+                mf.Size = self.size
+            end
             syncUiScreenEnabled()
             if (ui.syncMobileButtonState) then
                 ui.syncMobileButtonState()
@@ -3819,7 +3817,11 @@ do
         window.toggle = function(self)
             local mf = self.instances and self.instances.mainFrame
             if (not mf or not mf.Parent) then return self end
-            mf.Visible = not mf.Visible
+            local nextVis = not mf.Visible
+            mf.Visible = nextVis
+            if (nextVis and not self.minimized and self.size) then
+                mf.Size = self.size
+            end
             syncUiScreenEnabled()
             if (ui.syncMobileButtonState) then
                 ui.syncMobileButtonState()
@@ -5042,6 +5044,9 @@ do
                 mf['#resize-handle'].Visible = self.resizable
             end
             self.minimized = newState
+            if (ui._syncScreenState) then
+                ui._syncScreenState()
+            end
             return self
         end
 
@@ -5656,6 +5661,9 @@ do
                 mf['#region'].Visible = true
             end
             self.minimized = newState
+            if (ui._syncScreenState) then
+                ui._syncScreenState()
+            end
             return self
         end
 
@@ -6125,9 +6133,19 @@ do
             end
             for _, m in ipairs(win.menus) do
                 local mf = m.instances.menuFrame
+                if (m._slideTween) then
+                    pcall(function() m._slideTween:Cancel() end)
+                    m._slideTween = nil
+                end
                 local targetPos = UDim2.fromScale(0, m.id - self.id)
                 if (m == self or m == prev) then
-                    tween(mf, {Position = targetPos}, 0.35, 1)
+                    local tw = tween(mf, {Position = targetPos}, 0.35, 1)
+                    m._slideTween = tw
+                    tw.Completed:Connect(function()
+                        if (m._slideTween == tw) then
+                            m._slideTween = nil
+                        end
+                    end)
                 else
                     mf.Position = targetPos
                     mf.Visible = false
@@ -6316,7 +6334,12 @@ do
                 m:select()
             elseif (activeMenu) then
                 for _, item in ipairs(self.menus) do
+                    if (item._slideTween) then
+                        pcall(function() item._slideTween:Cancel() end)
+                        item._slideTween = nil
+                    end
                     item.instances.menuFrame.Position = UDim2.fromScale(0, item.id - activeMenu.id)
+                    item.instances.menuFrame.Visible = (item == activeMenu)
                 end
                 local pill = self.instances and self.instances.activePill
                 if (pill and pill.Parent) then
@@ -12083,8 +12106,10 @@ do
             local mainFrame = insts.mainFrame
             local titleBar = insts.titleBar
 
-            mainFrame.Size = UDim2.fromOffset(s_winSize.X.Offset, 29)
-            tween(mainFrame, {Size = s_winSize}, 0.4, 1)
+            if (not win.minimized and mainFrame and mainFrame.Parent and mainFrame.Visible) then
+                mainFrame.Size = UDim2.fromOffset(s_winSize.X.Offset, 29)
+                tween(mainFrame, {Size = s_winSize}, 0.4, 1)
+            end
 
             task.spawn(function()
                 local fade = titleBar['#fade']
@@ -12226,6 +12251,10 @@ do
         end
         cursorTerminated = true
         syncCursorUnlock(false)
+        if (cursorModalBtn) then
+            pcall(function() cursorModalBtn:Destroy() end)
+            cursorModalBtn = nil
+        end
         if (cursorScreen) then
             pcall(function() cursorScreen:Destroy() end)
             cursorScreen = nil
