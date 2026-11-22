@@ -1730,6 +1730,7 @@ end
 local lastCursorX, lastCursorY = nil, nil
 local cursorUnlockActive = false
 local cursorTerminated = false
+local lastHotkeyBindTime = 0
 
 local function syncCursorUnlock(shouldActive)
     local active = (shouldActive == true) and (enableCursorUnlock == true) and (not cursorTerminated)
@@ -9158,13 +9159,15 @@ do
 
             self.inputCon = inputService.InputBegan:Connect(function(io)
                 if (io.UserInputType ~= Enum.UserInputType.Keyboard) then return end
+                lastHotkeyBindTime = os.clock()
                 local kc = io.KeyCode.Name
                 if (kc == 'Unknown' or kc == 'Escape') then
                     self.hotkey = nil
+                    self.set = lastHotkeyBindTime
                     display.Text = '[None]'
                 else
                     self.hotkey = io.KeyCode
-                    self.set = os.clock()
+                    self.set = lastHotkeyBindTime
                     display.Text = ('[%s]'):format(kc)
                 end
                 self.inputCon:Disconnect()
@@ -14169,18 +14172,21 @@ do
             if (ui._terminated) then return end
             if (io.UserInputType ~= Enum.UserInputType.Keyboard) then return end
             if (inputService:GetFocusedTextBox() ~= nil) then return end
+            local now = os.clock()
+            if ((now - lastHotkeyBindTime) < 0.12) then return end
             for i = 1, #hotkeys do
                 if (hotkeys[i].inputCon ~= nil) then
                     return
                 end
             end
             local kc = io.KeyCode
-            local now = os.clock()
+            local triggeredControls = {}
             for i = 1, #hotkeys do
                 local hk = hotkeys[i]
-                if (hk.hotkey == kc and (not hk.set or (now - hk.set) > 0.08)) then
+                if (hk.hotkey == kc and (not hk.set or (now - hk.set) > 0.12)) then
                     local linkedControl = hk.linkedControl
-                    if (linkedControl and (not gpe or linkedControl.class == 'window')) then
+                    if (linkedControl and (not triggeredControls[linkedControl]) and (not gpe or linkedControl.class == 'window')) then
+                        triggeredControls[linkedControl] = true
                         task.spawn(function()
                             linkedControl.__hotkeyFunc(linkedControl)
                             if (ui.refreshKeybindList) then
