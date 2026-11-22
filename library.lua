@@ -9147,9 +9147,13 @@ do
             if (self.inputCon) then
                 self.inputCon:Disconnect()
                 self.inputCon = nil
-                display.Text = self.hotkey and ('[%s]'):format(self.hotkey.Name) or '[None]'
+                self.hotkey = nil
+                self.set = os.clock()
+                lastHotkeyBindTime = self.set
+                display.Text = '[None]'
                 tween(display, {TextColor3 = self.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
                 tween(badge['#stroke'], {Color = self.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+                if (ui.refreshKeybindList) then ui.refreshKeybindList() end
                 return self
             end
 
@@ -12124,7 +12128,7 @@ do
         local menuKey = cfgSec:addHotkey({
             text = 'toggle menu bind',
             bind = Enum.KeyCode.K,
-            tooltip = 'Show or hide the window. Click twice while listening to cancel input.'
+            tooltip = 'Show or hide the window. Click twice to unbind.'
         })
         menuKey:linkToControl(win)
 
@@ -12905,7 +12909,7 @@ do
         local notifyKey = cfgSec:addHotkey({
             text = 'test notify bind',
             bind = Enum.KeyCode.G,
-            tooltip = 'Press this key anytime to trigger the linked test notification. Click twice to cancel.'
+            tooltip = 'Press this key anytime to trigger the linked test notification. Click twice to unbind.'
         })
         notifyKey:linkToControl(cfgSec:addButton({
             text = 'send test notification',
