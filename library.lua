@@ -23,6 +23,8 @@ local currentTransparency = 0
 local enableIntro = true
 local enableMobileButton = (inputService.TouchEnabled and not inputService.KeyboardEnabled)
 local enableCursorUnlock = true
+local enableFpsMode = false
+local fpsManualOverride = nil
 local theme
 
 local function isPrimaryInput(io)
@@ -467,6 +469,13 @@ do
             enableCursorUnlock = settings.unlockCursor and true or false
         elseif (settings.forceCursor ~= nil) then
             enableCursorUnlock = settings.forceCursor and true or false
+        end
+        if (settings.FPS ~= nil) then
+            enableFpsMode = settings.FPS and true or false
+            fpsManualOverride = enableFpsMode
+        elseif (settings.fps ~= nil) then
+            enableFpsMode = settings.fps and true or false
+            fpsManualOverride = enableFpsMode
         end
         if (typeof(theme) == 'string') then
             if (theme == 'cherry') then
@@ -2207,6 +2216,77 @@ local fontListeners = {}
 local scaleListeners = {}
 local textScaleListeners = {}
 local themeListeners = {}
+local fpsListeners = {}
+local activeMouseBindPicker = nil
+
+local function closeMouseBindPicker()
+    if (activeMouseBindPicker and activeMouseBindPicker.Parent) then
+        pcall(function() activeMouseBindPicker:Destroy() end)
+    end
+    activeMouseBindPicker = nil
+end
+
+local function isFpsModeEnabled()
+    if (ui and ui.FPS ~= nil and ui.FPS ~= enableFpsMode) then
+        enableFpsMode = ui.FPS and true or false
+        fpsManualOverride = enableFpsMode
+    end
+    if (fpsManualOverride ~= nil) then
+        return fpsManualOverride
+    end
+    return enableFpsMode or (globalEnv and globalEnv.FPS == true) or (_G and _G.FPS == true)
+end
+
+local function emitFpsChanged(val)
+    for i = 1, #fpsListeners do
+        task.spawn(fpsListeners[i], val)
+    end
+end
+
+local function formatHotkeyName(key)
+    if (key == Enum.UserInputType.MouseButton1) then
+        return 'LB'
+    elseif (key == Enum.UserInputType.MouseButton2) then
+        return 'RB'
+    elseif (typeof(key) == 'EnumItem') then
+        return key.Name
+    end
+    return 'None'
+end
+
+local function resolveHotkeyInput(key)
+    if (key == nil) then
+        return nil
+    end
+    if (typeof(key) == 'EnumItem') then
+        if (key.EnumType == Enum.KeyCode) then
+            return key
+        end
+        if (key == Enum.UserInputType.MouseButton1 or key == Enum.UserInputType.MouseButton2) then
+            return key
+        end
+        return nil
+    end
+    local s = tostring(key)
+    local low = s:lower()
+    if (low == 'lb' or low == 'lmb' or low == 'mb1' or low == 'mousebutton1' or low == 'leftmouse') then
+        return Enum.UserInputType.MouseButton1
+    elseif (low == 'rb' or low == 'rmb' or low == 'mb2' or low == 'mousebutton2' or low == 'rightmouse') then
+        return Enum.UserInputType.MouseButton2
+    elseif (Enum.KeyCode[s]) then
+        return Enum.KeyCode[s]
+    end
+    return nil
+end
+
+local function isPointInGuiObj(guiObj, pos)
+    if (not guiObj or not guiObj.Parent or not guiObj.Visible) then return false end
+    local ap = guiObj.AbsolutePosition
+    local as = guiObj.AbsoluteSize
+    local inset = guiService:GetGuiInset()
+    local py = pos.Y - inset.Y
+    return pos.X >= ap.X and pos.X <= (ap.X + as.X) and py >= ap.Y and py <= (ap.Y + as.Y)
+end
 
 local function emitFontChanged()
     for i = 1, #fontListeners do
@@ -3794,6 +3874,7 @@ do
             uiScreen.Enabled = anyVis
             syncCursorUnlock(anyExpanded)
             if (not anyVis) then
+                closeMouseBindPicker()
                 tooltip.showing = false
                 tooltip.handle = nil
                 if (tooltip.update) then
@@ -9144,41 +9225,120 @@ do
         hotkey.click = function(self)
             local display = self.instances.hotkey
             local badge = self.instances.badge
+            local function finishVisual()
+                tween(display, {TextColor3 = self.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+                tween(badge['#stroke'], {Color = self.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+                if (ui.refreshKeybindList) then ui.refreshKeybindList() end
+            end
+
             if (self.inputCon) then
+                closeMouseBindPicker()
                 self.inputCon:Disconnect()
                 self.inputCon = nil
                 self.hotkey = nil
                 self.set = os.clock()
                 lastHotkeyBindTime = self.set
                 display.Text = '[None]'
-                tween(display, {TextColor3 = self.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
-                tween(badge['#stroke'], {Color = self.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
-                if (ui.refreshKeybindList) then ui.refreshKeybindList() end
+                finishVisual()
                 return self
             end
 
+            closeMouseBindPicker()
             display.Text = '[...]'
             tween(display, {TextColor3 = theme.Primary}, 0.16, 1)
             tween(badge['#stroke'], {Color = theme.Primary}, 0.16, 1)
 
-            self.inputCon = inputService.InputBegan:Connect(function(io)
-                if (io.UserInputType ~= Enum.UserInputType.Keyboard) then return end
+            local function applyCaptured(keyObj)
+                closeMouseBindPicker()
                 lastHotkeyBindTime = os.clock()
-                local kc = io.KeyCode.Name
-                if (kc == 'Unknown' or kc == 'Escape') then
-                    self.hotkey = nil
-                    self.set = lastHotkeyBindTime
-                    display.Text = '[None]'
-                else
-                    self.hotkey = io.KeyCode
-                    self.set = lastHotkeyBindTime
-                    display.Text = ('[%s]'):format(kc)
+                self.hotkey = keyObj
+                self.set = lastHotkeyBindTime
+                display.Text = keyObj and ('[%s]'):format(formatHotkeyName(keyObj)) or '[None]'
+                if (self.inputCon) then
+                    self.inputCon:Disconnect()
+                    self.inputCon = nil
                 end
-                self.inputCon:Disconnect()
-                self.inputCon = nil
-                tween(display, {TextColor3 = self.focused and theme.TextPrimary or theme.TextDim}, 0.18, 1)
-                tween(badge['#stroke'], {Color = self.focused and theme.StrokeHover or theme.Stroke}, 0.18, 1)
-                if (ui.refreshKeybindList) then ui.refreshKeybindList() end
+                finishVisual()
+            end
+
+            if (isFpsModeEnabled() and uiScreen and uiScreen.Parent and badge and badge.Parent) then
+                local ap = badge.AbsolutePosition
+                local as = badge.AbsoluteSize
+                local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or guiService:GetScreenResolution()
+                local inset = guiService:GetGuiInset()
+                local popW, popH = 70, 22
+                local px = math.clamp(math.floor(ap.X + as.X - popW), 4, math.max(4, vp.X - popW - 4))
+                local py = math.floor(ap.Y + as.Y + 3)
+                if (py + popH > (vp.Y - inset.Y - 4)) then
+                    py = math.max(4, math.floor(ap.Y - popH - 3))
+                end
+
+                local pickerBar = create('Frame', {
+                    Active = true,
+                    BackgroundColor3 = theme.Window1,
+                    BorderSizePixel = 0,
+                    Name = '#fps-mouse-picker',
+                    Position = UDim2.fromOffset(px, py),
+                    Size = UDim2.fromOffset(popW, popH),
+                    ZIndex = 2650
+                }, uiScreen)
+                makeCorner(pickerBar, cornerPx)
+                makeStroke(pickerBar, theme.Primary, 1)
+
+                local function makeMouseOpt(lbl, xOff, inputEnum)
+                    local optBtn = create('TextButton', {
+                        AutoButtonColor = false,
+                        BackgroundColor3 = theme.Button1,
+                        BorderSizePixel = 0,
+                        Font = currentFont,
+                        Name = '#opt-' .. lbl,
+                        Position = UDim2.fromOffset(xOff, 3),
+                        Size = UDim2.fromOffset(30, 16),
+                        Text = lbl,
+                        TextColor3 = theme.TextPrimary,
+                        TextSize = 10,
+                        ZIndex = 2652
+                    }, pickerBar)
+                    makeCorner(optBtn, cornerPx)
+                    makeStroke(optBtn, theme.Stroke, 1)
+                    optBtn.MouseEnter:Connect(function()
+                        optBtn.BackgroundColor3 = theme.Button3
+                        optBtn['#stroke'].Color = theme.Primary
+                    end)
+                    optBtn.MouseLeave:Connect(function()
+                        optBtn.BackgroundColor3 = theme.Button1
+                        optBtn['#stroke'].Color = theme.Stroke
+                    end)
+                    optBtn.MouseButton1Click:Connect(function()
+                        applyCaptured(inputEnum)
+                    end)
+                end
+
+                makeMouseOpt('LB', 3, Enum.UserInputType.MouseButton1)
+                makeMouseOpt('RB', 37, Enum.UserInputType.MouseButton2)
+                activeMouseBindPicker = pickerBar
+            end
+
+            self.inputCon = inputService.InputBegan:Connect(function(io)
+                if (io.UserInputType == Enum.UserInputType.Keyboard) then
+                    local kc = io.KeyCode.Name
+                    if (kc == 'Unknown' or kc == 'Escape') then
+                        applyCaptured(nil)
+                    else
+                        applyCaptured(io.KeyCode)
+                    end
+                elseif (isFpsModeEnabled()) then
+                    if (io.UserInputType == Enum.UserInputType.MouseButton2) then
+                        applyCaptured(Enum.UserInputType.MouseButton2)
+                    elseif (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                        local mpos = inputService:GetMouseLocation()
+                        local clickTarget = (self.instances.back and self.instances.back.Parent) and self.instances.back or self.instances.badge
+                        if (isPointInGuiObj(clickTarget, mpos) or isPointInGuiObj(activeMouseBindPicker, mpos)) then
+                            return
+                        end
+                        applyCaptured(Enum.UserInputType.MouseButton1)
+                    end
+                end
             end)
             return self
         end
@@ -9246,19 +9406,12 @@ do
 
         hotkey.setHotkey = function(self, key)
             if (key) then
-                if (typeof(key) == 'EnumItem') then
-                    if (key.EnumType ~= Enum.KeyCode) then
-                        return error('expected EnumItem of EnumType KeyCode for hotkey', 2)
-                    end
-                else
-                    if (Enum.KeyCode[key]) then
-                        key = Enum.KeyCode[key]
-                    else
-                        return error('expected valid Enum.KeyCode Name, or Enum.KeyCode EnumItem', 2)
-                    end
+                local resolved = resolveHotkeyInput(key)
+                if (not resolved) then
+                    return error('expected valid KeyCode, LB/RB, or MouseButton1/MouseButton2 for hotkey', 2)
                 end
-                self.hotkey = key
-                self.instances.hotkey.Text = ('[%s]'):format(key.Name)
+                self.hotkey = resolved
+                self.instances.hotkey.Text = ('[%s]'):format(formatHotkeyName(resolved))
             else
                 self.hotkey = nil
                 self.instances.hotkey.Text = '[None]'
@@ -9267,6 +9420,16 @@ do
             return self
         end
         hotkey.getHotkey = function(self) return self.hotkey end
+        hotkey.isDown = function(self)
+            local k = self.hotkey
+            if (not k) then return false end
+            if (k == Enum.UserInputType.MouseButton1 or k == Enum.UserInputType.MouseButton2) then
+                return inputService:IsMouseButtonPressed(k)
+            elseif (typeof(k) == 'EnumItem' and k.EnumType == Enum.KeyCode) then
+                return inputService:IsKeyDown(k)
+            end
+            return false
+        end
 
         elemClasses.section.addHotkey = function(self, settings)
             if (typeof(settings) ~= 'table') then
@@ -12167,6 +12330,23 @@ do
             ui.setCursorUnlock(state)
         end)
 
+        local fpsToggle = cfgSec:addToggle({
+            text = 'FPS',
+            state = isFpsModeEnabled(),
+            tooltip = 'Enables LB / RB (left & right mouse button) binding on hotkeys'
+        }, function(state)
+            ui.setFPS(state)
+        end)
+        table.insert(fpsListeners, function(val)
+            if (fpsToggle and fpsToggle.instances and fpsToggle.instances.controlFrame and fpsToggle.instances.controlFrame.Parent) then
+                if (val and not fpsToggle.toggled) then
+                    fpsToggle:enable(true)
+                elseif (not val and fpsToggle.toggled) then
+                    fpsToggle:disable(true)
+                end
+            end
+        end)
+
         cfgSec:addTextbox({
             text = 'watermark text',
             placeholder = 'custom watermark...',
@@ -12359,7 +12539,7 @@ do
                             data[key] = {r = c.R, g = c.G, b = c.B}
                         end
                     elseif (cls == 'hotkey') then
-                        data[key] = ctrl.hotkey and ctrl.hotkey.Name or ''
+                        data[key] = ctrl.hotkey and formatHotkeyName(ctrl.hotkey) or ''
                     end
                 end)
                 return data
@@ -12400,8 +12580,11 @@ do
                     elseif (cls == 'hotkey' and typeof(val) == 'string') then
                         if (val == '') then
                             pcall(function() ctrl:setHotkey(nil) end)
-                        elseif (Enum.KeyCode[val]) then
-                            pcall(function() ctrl:setHotkey(Enum.KeyCode[val]) end)
+                        else
+                            local resolvedKey = resolveHotkeyInput(val)
+                            if (resolvedKey) then
+                                pcall(function() ctrl:setHotkey(resolvedKey) end)
+                            end
                         end
                     end
                 end)
@@ -13091,8 +13274,10 @@ do
         table.clear(scaleListeners)
         table.clear(textScaleListeners)
         table.clear(themeListeners)
+        table.clear(fpsListeners)
         table.clear(easterEggLabels)
         table.clear(nestedScrolls)
+        closeMouseBindPicker()
 
         if (elemClasses) then
             for _, v in pairs(elemClasses) do
@@ -13521,6 +13706,24 @@ do
         return enableCursorUnlock
     end
 
+    ui.FPS = isFpsModeEnabled()
+
+    ui.getFPS = function()
+        return isFpsModeEnabled()
+    end
+
+    ui.setFPS = function(enabled)
+        local nextVal = enabled and true or false
+        enableFpsMode = nextVal
+        fpsManualOverride = nextVal
+        ui.FPS = nextVal
+        if (not nextVal) then
+            closeMouseBindPicker()
+        end
+        emitFpsChanged(nextVal)
+        return nextVal
+    end
+
     ui.playIntro = function(targetWin)
         local w = targetWin or windows[1]
         if (w) then
@@ -13785,7 +13988,7 @@ do
                     if (hk.linkedControl and hk.linkedControl.class == 'toggle') then
                         active = hk.linkedControl.toggled == true
                     end
-                    parts[#parts + 1] = tostring(idx) .. ':' .. tostring(hk.name or 'bind') .. ':' .. hk.hotkey.Name .. ':' .. (active and '1' or '0')
+                    parts[#parts + 1] = tostring(idx) .. ':' .. tostring(hk.name or 'bind') .. ':' .. formatHotkeyName(hk.hotkey) .. ':' .. (active and '1' or '0')
                 end
             end
             local sig = table.concat(parts, '|')
@@ -13829,7 +14032,7 @@ do
                         Name = '#key',
                         Position = UDim2.fromScale(0.68, 0),
                         Size = UDim2.new(0.32, 0, 1, 0),
-                        Text = ('[%s]'):format(hk.hotkey.Name),
+                        Text = ('[%s]'):format(formatHotkeyName(hk.hotkey)),
                         TextColor3 = active and theme.Primary or theme.TextDim,
                         TextSize = 10,
                         TextStrokeColor3 = theme.TextStroke,
@@ -14172,10 +14375,23 @@ do
 
     do
         local hotkeys = ui.hotkeys
+        local function isMouseOverAnyWindow()
+            local mpos = inputService:GetMouseLocation()
+            for _, w in ipairs(ui.windows) do
+                local mf = w.instances and w.instances.mainFrame
+                if (mf and mf.Parent and mf.Visible and isPointInGuiObj(mf, mpos)) then
+                    return true
+                end
+            end
+            return false
+        end
         ui.hkCon = inputService.InputBegan:Connect(function(io, gpe)
             if (ui._terminated) then return end
-            if (io.UserInputType ~= Enum.UserInputType.Keyboard) then return end
-            if (inputService:GetFocusedTextBox() ~= nil) then return end
+            local isKeyboard = (io.UserInputType == Enum.UserInputType.Keyboard)
+            local isMouseBtn = (io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.MouseButton2)
+            if (not isKeyboard and not (isMouseBtn and isFpsModeEnabled())) then return end
+            if (isKeyboard and inputService:GetFocusedTextBox() ~= nil) then return end
+            if (isMouseBtn and (gpe or isMouseOverAnyWindow())) then return end
             local now = os.clock()
             if ((now - lastHotkeyBindTime) < 0.12) then return end
             for i = 1, #hotkeys do
@@ -14183,13 +14399,13 @@ do
                     return
                 end
             end
-            local kc = io.KeyCode
+            local matchInput = isKeyboard and io.KeyCode or io.UserInputType
             local triggeredControls = {}
             for i = 1, #hotkeys do
                 local hk = hotkeys[i]
-                if (hk.hotkey == kc and (not hk.set or (now - hk.set) > 0.12)) then
+                if (hk.hotkey == matchInput and (not hk.set or (now - hk.set) > 0.12)) then
                     local linkedControl = hk.linkedControl
-                    if (linkedControl and (not triggeredControls[linkedControl]) and (not gpe or linkedControl.class == 'window')) then
+                    if (linkedControl and (not triggeredControls[linkedControl]) and (not gpe or (isKeyboard and linkedControl.class == 'window'))) then
                         triggeredControls[linkedControl] = true
                         task.spawn(function()
                             linkedControl.__hotkeyFunc(linkedControl)

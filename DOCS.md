@@ -35,6 +35,7 @@ local ui = uiLoader({
 | `intro` | `boolean` | `true` | Plays the in-window `L A R P` intro animation when the window opens. |
 | `mobileButton` | `boolean` | `TouchEnabled and not KeyboardEnabled` | Displays the draggable, resizable floating toggle button to open/close the UI. Auto-enabled on touch-only mobile devices and hidden by default on keyboard devices. |
 | `unlockCursor` | `boolean` | `true` | Forces free mouse movement (`Modal` + `MouseBehavior.Default`) and draws the high-contrast LARPWare cursor override whenever a window is open, even during ShiftLock or first-person camera lock. Toggleable live in `Preference` (`unlock cursor`) or via `ui.setCursorUnlock(bool)` / `ui.getCursorUnlock()`. |
+| `FPS` | `boolean` | `false` | Enables FPS mode so any hotkey can be bound to `LB` (`MouseButton1`) or `RB` (`MouseButton2`) via a quick `[LB] [RB]` picker or direct mouse click. Also synced with `ui.FPS`, `ui.setFPS(bool)`, `getgenv().FPS` / `_G.FPS`, and the `FPS` toggle in `Preference`. |
 | `onCancel` | `function` | `nil` | Optional callback invoked if the user clicks **Cancel** on the duplicate-instance warning modal. If omitted, the duplicate thread yields cleanly without errors. |
 
 ### Hosting & Parenting
