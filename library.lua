@@ -2218,12 +2218,33 @@ local textScaleListeners = {}
 local themeListeners = {}
 local fpsListeners = {}
 local activeMouseBindPicker = nil
+local activeListeningHotkey = nil
 
 local function closeMouseBindPicker()
     if (activeMouseBindPicker and activeMouseBindPicker.Parent) then
         pcall(function() activeMouseBindPicker:Destroy() end)
     end
     activeMouseBindPicker = nil
+end
+
+local function cancelActiveHotkeyListen()
+    closeMouseBindPicker()
+    local hk = activeListeningHotkey
+    activeListeningHotkey = nil
+    if (not hk) then return end
+    if (hk.inputCon) then
+        pcall(function() hk.inputCon:Disconnect() end)
+        hk.inputCon = nil
+    end
+    local display = hk.instances and hk.instances.hotkey
+    local badge = hk.instances and hk.instances.badge
+    if (display and display.Parent) then
+        display.Text = hk.hotkey and ('[%s]'):format(formatHotkeyName(hk.hotkey)) or '[None]'
+        tween(display, {TextColor3 = hk.focused and theme.TextPrimary or theme.TextDim}, 0.16, 1)
+    end
+    if (badge and badge.Parent and badge:FindFirstChild('#stroke')) then
+        tween(badge['#stroke'], {Color = hk.focused and theme.StrokeHover or theme.Stroke}, 0.16, 1)
+    end
 end
 
 local function isFpsModeEnabled()
@@ -3874,7 +3895,11 @@ do
             uiScreen.Enabled = anyVis
             syncCursorUnlock(anyExpanded)
             if (not anyVis) then
-                closeMouseBindPicker()
+                cancelActiveHotkeyListen()
+                local ftb = inputService:GetFocusedTextBox()
+                if (ftb and uiScreen and ftb:IsDescendantOf(uiScreen)) then
+                    pcall(function() ftb:ReleaseFocus() end)
+                end
                 tooltip.showing = false
                 tooltip.handle = nil
                 if (tooltip.update) then
@@ -3906,6 +3931,11 @@ do
         window.toggle = function(self)
             local mf = self.instances and self.instances.mainFrame
             if (not mf or not mf.Parent) then return self end
+            local now = os.clock()
+            if (self._lastToggleTime and (now - self._lastToggleTime) < 0.06) then
+                return self
+            end
+            self._lastToggleTime = now
             local nextVis = not mf.Visible
             mf.Visible = nextVis
             if (nextVis and not self.minimized and self.size) then
@@ -6180,6 +6210,7 @@ do
         menu.instances = instances
 
         menu.select = function(self)
+            cancelActiveHotkeyListen()
             if (self.window and self.window.setEasterEgg) then
                 self.window:setEasterEgg(false)
             end
@@ -6973,13 +7004,14 @@ do
             return p
         end
 
-        toggle.addHotkey = function(self, settings)
+        toggle.addHotkey = function(self, settings, callback)
             settings = settings or {}
             local s_bind = settings.bind or settings.key or nil
 
             local hk = elemClasses.hotkey:new()
             hk.section = self.section
             hk.name = settings.text or self.name
+            hk.mode = (typeof(settings.mode) == 'string') and settings.mode:lower() or 'toggle'
             if (self.section) then
                 table.insert(self.section.controls, hk)
             end
@@ -7016,12 +7048,16 @@ do
 
             hk.instances.controlFrame:Destroy()
             hk.instances.controlFrame = badgeBtn
+            hk.instances.back = badgeBtn
             hk.instances.badge = badgeBtn
             hk.instances.hotkey = hkLbl
             hk:linkToControl(self)
 
             if (s_bind) then
                 hk:setHotkey(s_bind)
+            end
+            if (typeof(callback) == 'function') then
+                hk:bindToEvent('onHotkeyChange', callback)
             end
 
             badgeBtn.MouseEnter:Connect(function()
@@ -9232,6 +9268,9 @@ do
             end
 
             if (self.inputCon) then
+                if (activeListeningHotkey == self) then
+                    activeListeningHotkey = nil
+                end
                 closeMouseBindPicker()
                 self.inputCon:Disconnect()
                 self.inputCon = nil
@@ -9240,15 +9279,24 @@ do
                 lastHotkeyBindTime = self.set
                 display.Text = '[None]'
                 finishVisual()
+                self:fireEvent('onHotkeyChange', nil)
+                self:fireEvent('onChanged', nil)
                 return self
             end
 
-            closeMouseBindPicker()
+            cancelActiveHotkeyListen()
+            activeListeningHotkey = self
             display.Text = '[...]'
             tween(display, {TextColor3 = theme.Primary}, 0.16, 1)
             tween(badge['#stroke'], {Color = theme.Primary}, 0.16, 1)
 
+            local isWindowToggleBind = (self.linkedControl ~= nil and self.linkedControl.class == 'window')
+            local allowMouseBind = isFpsModeEnabled() and (not isWindowToggleBind)
+
             local function applyCaptured(keyObj)
+                if (activeListeningHotkey == self) then
+                    activeListeningHotkey = nil
+                end
                 closeMouseBindPicker()
                 lastHotkeyBindTime = os.clock()
                 self.hotkey = keyObj
@@ -9259,9 +9307,11 @@ do
                     self.inputCon = nil
                 end
                 finishVisual()
+                self:fireEvent('onHotkeyChange', keyObj)
+                self:fireEvent('onChanged', keyObj)
             end
 
-            if (isFpsModeEnabled() and uiScreen and uiScreen.Parent and badge and badge.Parent) then
+            if (allowMouseBind and uiScreen and uiScreen.Parent and badge and badge.Parent) then
                 local ap = badge.AbsolutePosition
                 local as = badge.AbsoluteSize
                 local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or guiService:GetScreenResolution()
@@ -9327,16 +9377,20 @@ do
                     else
                         applyCaptured(io.KeyCode)
                     end
-                elseif (isFpsModeEnabled()) then
-                    if (io.UserInputType == Enum.UserInputType.MouseButton2) then
+                elseif (io.UserInputType == Enum.UserInputType.MouseButton2) then
+                    if (allowMouseBind and isFpsModeEnabled()) then
                         applyCaptured(Enum.UserInputType.MouseButton2)
-                    elseif (io.UserInputType == Enum.UserInputType.MouseButton1) then
-                        local mpos = inputService:GetMouseLocation()
-                        local clickTarget = (self.instances.back and self.instances.back.Parent) and self.instances.back or self.instances.badge
-                        if (isPointInGuiObj(clickTarget, mpos) or isPointInGuiObj(activeMouseBindPicker, mpos)) then
-                            return
-                        end
+                    end
+                elseif (io.UserInputType == Enum.UserInputType.MouseButton1) then
+                    local mpos = inputService:GetMouseLocation()
+                    local clickTarget = (self.instances.back and self.instances.back.Parent) and self.instances.back or self.instances.badge
+                    if (isPointInGuiObj(clickTarget, mpos) or isPointInGuiObj(activeMouseBindPicker, mpos)) then
+                        return
+                    end
+                    if (allowMouseBind and isFpsModeEnabled()) then
                         applyCaptured(Enum.UserInputType.MouseButton1)
+                    else
+                        cancelActiveHotkeyListen()
                     end
                 end
             end)
@@ -9417,6 +9471,8 @@ do
                 self.instances.hotkey.Text = '[None]'
             end
             if (ui.refreshKeybindList) then ui.refreshKeybindList() end
+            self:fireEvent('onHotkeyChange', self.hotkey)
+            self:fireEvent('onChanged', self.hotkey)
             return self
         end
         hotkey.getHotkey = function(self) return self.hotkey end
@@ -9431,16 +9487,17 @@ do
             return false
         end
 
-        elemClasses.section.addHotkey = function(self, settings)
+        elemClasses.section.addHotkey = function(self, settings, callback)
             if (typeof(settings) ~= 'table') then
                 return error('expected type table for settings', 2)
             end
             local s_title = settings.text or 'hotkey'
-            local s_bind = settings.bind or nil
+            local s_bind = settings.bind or settings.key or nil
 
             local hk = hotkey:new()
             hk.section = self
             hk.name = s_title
+            hk.mode = (typeof(settings.mode) == 'string') and settings.mode:lower() or 'toggle'
             table.insert(self.controls, hk)
 
             hk.instances.label.Text = s_title
@@ -9448,6 +9505,9 @@ do
                 hk:setHotkey(s_bind)
             end
             hk.instances.controlFrame.Parent = self.instances.controlMenu
+            if (typeof(callback) == 'function') then
+                hk:bindToEvent('onHotkeyChange', callback)
+            end
             if (settings.tooltip) then
                 hk:setTooltip(settings.tooltip)
             end
@@ -12294,6 +12354,15 @@ do
             tooltip = 'Show or hide the window. Click twice to unbind.'
         })
         menuKey:linkToControl(win)
+        win.menuHotkey = menuKey
+        win._defaultMenuKey = menuKey
+        win.setToggleKey = function(_, key)
+            menuKey:setHotkey(key)
+            return win
+        end
+        win.getToggleKey = function()
+            return menuKey:getHotkey()
+        end
 
         local wmVisible = (ui._watermarkFrame and ui._watermarkFrame.Visible) and true or false
         cfgSec:addToggle({
@@ -12579,11 +12648,15 @@ do
                         end)
                     elseif (cls == 'hotkey' and typeof(val) == 'string') then
                         if (val == '') then
-                            pcall(function() ctrl:setHotkey(nil) end)
+                            if (ctrl ~= win._defaultMenuKey) then
+                                pcall(function() ctrl:setHotkey(nil) end)
+                            end
                         else
                             local resolvedKey = resolveHotkeyInput(val)
                             if (resolvedKey) then
-                                pcall(function() ctrl:setHotkey(resolvedKey) end)
+                                if (ctrl ~= win._defaultMenuKey or resolvedKey.EnumType == Enum.KeyCode) then
+                                    pcall(function() ctrl:setHotkey(resolvedKey) end)
+                                end
                             end
                         end
                     end
@@ -13277,7 +13350,7 @@ do
         table.clear(fpsListeners)
         table.clear(easterEggLabels)
         table.clear(nestedScrolls)
-        closeMouseBindPicker()
+        cancelActiveHotkeyListen()
 
         if (elemClasses) then
             for _, v in pairs(elemClasses) do
@@ -14390,12 +14463,25 @@ do
             local isKeyboard = (io.UserInputType == Enum.UserInputType.Keyboard)
             local isMouseBtn = (io.UserInputType == Enum.UserInputType.MouseButton1 or io.UserInputType == Enum.UserInputType.MouseButton2)
             if (not isKeyboard and not (isMouseBtn and isFpsModeEnabled())) then return end
-            if (isKeyboard and inputService:GetFocusedTextBox() ~= nil) then return end
+            if (isKeyboard) then
+                local ftb = inputService:GetFocusedTextBox()
+                if (ftb ~= nil) then
+                    local insideHiddenUi = (uiScreen and (not uiScreen.Enabled) and ftb:IsDescendantOf(uiScreen))
+                    if (insideHiddenUi) then
+                        pcall(function() ftb:ReleaseFocus() end)
+                    else
+                        return
+                    end
+                end
+            end
             if (isMouseBtn and (gpe or isMouseOverAnyWindow())) then return end
             local now = os.clock()
             if ((now - lastHotkeyBindTime) < 0.12) then return end
-            for i = 1, #hotkeys do
-                if (hotkeys[i].inputCon ~= nil) then
+            if (activeListeningHotkey) then
+                local disp = activeListeningHotkey.instances and activeListeningHotkey.instances.hotkey
+                if (not activeListeningHotkey.inputCon or not disp or not disp.Parent or (uiScreen and not uiScreen.Enabled)) then
+                    cancelActiveHotkeyListen()
+                else
                     return
                 end
             end
@@ -14403,7 +14489,7 @@ do
             local triggeredControls = {}
             for i = 1, #hotkeys do
                 local hk = hotkeys[i]
-                if (hk.hotkey == matchInput and (not hk.set or (now - hk.set) > 0.12)) then
+                if (hk.hotkey == matchInput and hk.mode ~= 'hold' and (not hk.set or (now - hk.set) > 0.12)) then
                     local linkedControl = hk.linkedControl
                     if (linkedControl and (not triggeredControls[linkedControl]) and (not gpe or (isKeyboard and linkedControl.class == 'window'))) then
                         triggeredControls[linkedControl] = true
